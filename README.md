@@ -53,8 +53,8 @@ $ pip install poetry
 ```
 1. library install & make virtual env
 ```
-$ git clone git@github.com:st-tech/zr-xrec.git
-$ cd zr-xrec
+$ git clone git@github.com:jchanxtarov/sent_xrec_bench.git
+$ cd sent_xrec_bench
 $ make setup
 ```
 2. download datasets (download xxx_exps.pkl.gz & put it into datasets/)
@@ -69,7 +69,7 @@ For example,
 ```
 $ make dry-run ratebeer peter
 ```
-4. 【optional】 create wandb account (if you need) and project 'zr-xrec'
+4. 【optional】 create wandb account (if you need) and project 'sent_xrec_bench'
 5. 【optional】 run with logging
 ```
 $ make run {dataset_name} {model_name}
@@ -81,7 +81,7 @@ $ make run ratebeer peter
 
 ### evaluations using task-specific metrics
 
-Please see the [notebook](https://github.com/st-tech/zr-xrec/blob/main/src/evals/evaluation.ipynb).
+Please see the [notebook](https://github.com/jchanxtarov/sent_xrec_bench/blob/main/src/evals/evaluation.ipynb).
 
 ## Datasets to download
 

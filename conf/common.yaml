@@ -5,7 +5,7 @@ seed: 2020
 save_log: false
 save_model: false
 prediction_mode: false
-wandb_project: zr-xrec
+wandb_project: sent_xrec_bench
 message: ""
 pretrain:
   checkpoint_dir: ""
