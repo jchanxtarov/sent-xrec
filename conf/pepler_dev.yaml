@@ -1,0 +1,30 @@
+model:
+  name: pepler
+  checkpoint_dir: ""
+  pretrained_model_name: gpt2
+  reg_text: 1.0
+  reg_rating: 0.01
+  type_rating_embedding: null
+  rec_model:
+    type: mlp
+    mlp_n_hidden_layers: 2
+    mlp_d_hidden: 400
+trainer:
+  epochs: 1
+  check_val_every_n_epoch: 1
+  check_gen_text_every_n_epoch: 1
+  check_n_samples: 3
+  batch_size: 6
+  patience: 3
+  use_seq_optimizers: false
+opt:
+  lr: 0.001
+  wd: 0.0
+  factor: 0.25
+  step_size: 1
+  clip_gradients: 1.0
+dev:
+  limit_train_batches: 1
+  limit_val_batches: 3
+  limit_test_batches: 1
+  max_data_size: 500

@@ -1,0 +1,26 @@
+dataset: amazon_movie
+max_vocab_size: 20000
+max_seq_len: 20
+seed: 2020
+save_log: false
+save_model: false
+prediction_mode: false
+wandb_project: zr-xrec
+message: ""
+pretrain:
+  checkpoint_dir: ""
+  type: mlp
+  mlp_n_hidden_layers: 2
+  mlp_d_hidden: 400
+trainer_pretrain:
+  epochs: 1
+  batch_size: 128
+  patience: 3
+opt_pretrain:
+  lr: 0.00001
+  wd: 0.01
+  factor: 0.0
+  step_size: 0
+ablation:
+  leak_rating: false
+  noise_std: 0.0

@@ -1,0 +1,24 @@
+model:
+  name: pepler_d
+  checkpoint_dir: ""
+  pretrained_model_name: gpt2
+  n_features: 3
+  mode_retrieval: 0
+trainer:
+  epochs: 1
+  check_val_every_n_epoch: 1
+  check_gen_text_every_n_epoch: 1
+  check_n_samples: 3
+  batch_size: 6
+  patience: 3
+opt:
+  lr: 0.001
+  wd: 0.0
+  factor: 0.25
+  step_size: 1
+  clip_gradients: 1.0
+dev:
+  limit_train_batches: 1
+  limit_val_batches: 1
+  limit_test_batches: 1
+  max_data_size: 500

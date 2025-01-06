@@ -1,0 +1,32 @@
+model:
+  name: erra
+  checkpoint_dir: ""
+  retrieval_encoder_name: paraphrase-MiniLM-L6-v2
+  d_embed: 384
+  n_head: 2
+  n_hid: 2048
+  n_layers: 6
+  dropout: 0.2
+  peter_mask: true
+  reg_text: 1.0
+  reg_context: 0.8
+  reg_rating: 0.2
+  reg_aspect: 0.0
+trainer:
+  epochs: 30
+  check_val_every_n_epoch: 1
+  check_gen_text_every_n_epoch: 1
+  check_n_samples: 3
+  batch_size: 128
+  patience: 3
+opt:
+  lr: 1.0
+  wd: 0.0001
+  factor: 0.25
+  step_size: 1
+  clip_gradients: 1.0
+dev:
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  max_data_size: null

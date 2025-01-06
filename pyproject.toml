@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "sent-xrec-bench"
+version = "0.1.0"
+description = ""
+authors = ["jchanxtarov <r2shimizu@ucsd.edu>"]
+readme = "README.md"
+
+packages = [
+    { include = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+numpy = "^1.26.4"
+pandas = "^2.2.3"
+omegaconf = "^2.3.0"
+tqdm = "^4.66.5"
+rouge-score = "^0.1.2"
+torch = "^2.5.0"
+transformers = "^4.45.2"
+wandb = "^0.18.5"
+bleu = "^0.3"
+rouge = "^1.0.1"
+rich = "^13.9.3"
+sentence-transformers = "^3.2.1"
+scikit-learn = "^1.5.2"
+bert-score = "^0.3.13"
+seaborn = "^0.13.2"
+lightning = "^2.4.0"
+mypy = "^1.13.0"
+spacy = "^3.8.3"
+
+
+[tool.poetry.group.dev.dependencies]
+types-pyyaml = "^6.0.12.20240917"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
