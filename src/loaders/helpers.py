@@ -1,12 +1,10 @@
 import heapq
 import random
-from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import KMeans
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 from transformers import PreTrainedTokenizer
@@ -17,7 +15,7 @@ from loaders.tools import get_cos_sim
 class ReviewDataLoader:
     def __init__(
         self,
-        reviews: dict,
+        reviews: Dict[Any, Any],
         seq_len: int = 15,
         max_vocab_size: int = 20000,
         idx2word: List[str] = ["<bos>", "<eos>", "<pad>", "<unk>"],
@@ -45,7 +43,7 @@ class ReviewDataLoader:
         self.n_features = 0
         self.n_retrieved_profs = 0
 
-    def initialize(self, reviews: dict):
+    def initialize(self, reviews: Dict[Any, Any]):
         for review in reviews:
             self.user_dict.add_entity(review["user"])
             self.item_dict.add_entity(review["item"])
@@ -63,7 +61,9 @@ class ReviewDataLoader:
             if self.tokenizer is None:
                 self.word_dict.add_sentence(tem)
 
-    def load_data(self, reviews: dict) -> Tuple[dict, dict, dict]:
+    def load_data(
+        self, reviews: Dict[Any, Any]
+    ) -> Tuple[List[Dict[Any, Any]], List[Dict[Any, Any]], List[Dict[Any, Any]]]:
         train, valid, test = [], [], []
         for review in reviews:
             (pos, neg, tem) = review["template"]
@@ -208,7 +208,7 @@ class ReviewDataLoader:
 
     def __add_retrieved_features_ui(
         self,
-        reviews: dict,
+        reviews: Dict[Any, Any],
         useridxs_train: torch.Tensor,
         itemidxs_train: torch.Tensor,
         stores: List[str],
@@ -269,6 +269,7 @@ class ReviewDataLoader:
             _,
             pos_neg_train,
         ) = self.__prepare_search_data(encoder_name)
+        assert model is not None, "sentence encoder model should be included"
         embed_features_train = model.encode(
             pos_neg_train, batch_size=128, convert_to_tensor=True, device=self.device
         )
@@ -284,7 +285,7 @@ class ReviewDataLoader:
 
     def __add_retrieved_aspects(
         self,
-        reviews: dict,
+        reviews: Dict[Any, Any],
         useridxs_train: torch.Tensor,
         itemidxs_train: torch.Tensor,
         pos_neg_train: List[str],
@@ -329,6 +330,7 @@ class ReviewDataLoader:
             _,
             _,
         ) = self.__prepare_search_data(encoder_name)
+        assert model is None, "sentence encoder model is not defined"
         embed_exp_train = model.encode(
             texts_train,
             batch_size=128,

@@ -1,8 +1,6 @@
 from statistics import mean
-from typing import Optional
+from typing import Any, Optional
 
-import lightning as pl
-import pandas as pd
 import torch
 import torch.nn as nn
 from transformers import GPT2LMHeadModel, PreTrainedTokenizer
@@ -124,6 +122,7 @@ class PEPLER(BASE):
         src = torch.cat([u_src.unsqueeze(1), i_src.unsqueeze(1)], 1)
 
         if self.type_rating_embedding is not None:
+            r_src = None
             if self.type_rating_embedding == 0:
                 r_src = self.rating_embedding.weight.data.unsqueeze(0).expand(
                     batch_size, -1, -1
@@ -136,6 +135,7 @@ class PEPLER(BASE):
                     (pre_pred_rating / int(self.max_rating / self.n_rating_embedding))
                 ).to(torch.int)
                 r_src = self.rating_embedding(pre_pred_rating).unsqueeze(1)
+            assert r_src is not None, "r_src should be included"
             src = torch.cat([src, r_src], 1)
 
         w_src = self.lm.transformer.wte(text)
@@ -143,6 +143,7 @@ class PEPLER(BASE):
 
         rating = None
         if rating_prediction:
+            assert self.recommender is not None, "self.recommender should be included"
             if self.rec_type == "mf":
                 rating = self.recommender(u_src, i_src)
             elif self.rec_type == "mlp":
@@ -181,6 +182,8 @@ class PEPLER(BASE):
 
     def training_step(self, batch, batch_idx):
         user, item, rating, seq, mask, _, _, pre_pred_rating = batch
+        print("[test] rating: ", rating)
+        print("[test] pre_pred_rating: ", pre_pred_rating)
 
         # (test)
         if batch_idx % 500 == 0:
@@ -255,6 +258,8 @@ class PEPLER(BASE):
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         user, item, rating, seq, _, feature, feature_neg, pre_pred_rating = batch
+        print("[test] rating: ", rating)
+        print("[test] pre_pred_rating: ", pre_pred_rating)
         rating_predict, tokens_test, tokens_predict, text_test, text_predict = (
             self.generate(user, item, pre_pred_rating, seq)
         )
@@ -279,6 +284,7 @@ class PEPLER(BASE):
                 outputs, _, rating_pred = self.forward(
                     user, item, pre_pred_rating, text, None
                 )
+                assert rating_pred is not None, "rating_pred should be included"
                 rating_predict.extend(rating_pred.tolist())
             else:
                 outputs, _, _ = self.forward(
@@ -311,7 +317,7 @@ class PEPLER(BASE):
             text_predict,
         )
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Any:
         if self.use_seq_optimizers:
             for name, param in self.named_parameters():
                 if "transformer" in name:
@@ -320,14 +326,7 @@ class PEPLER(BASE):
         optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer,
-        #     mode="min",
-        #     factor=self.opt_factor,
-        #     patience=self.opt_step_size,
-        # )
         return {
             "optimizer": optimizer,
-            # "lr_scheduler": scheduler,
             "monitor": "valid/loss",
         }

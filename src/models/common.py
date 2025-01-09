@@ -136,7 +136,7 @@ class BASE(pl.LightningModule):
     ) -> dict:
         scores = {}
 
-        if rating is not None:
+        if rating is not None and rating_predict is not None:
             pair_rating = [(r, p) for (r, p) in zip(rating, rating_predict)]
             scores["rmse"] = get_root_mean_square_error(
                 pair_rating, self.storage.max_rating, self.storage.min_rating
@@ -188,7 +188,7 @@ class BASE(pl.LightningModule):
         tokens_predict: List[List[str]],
         text_predict: List[str],
         type: str = "",
-    ) -> Tuple[List[Set[str]], dict]:
+    ) -> Tuple[List[Optional[str]], dict]:
         type = f"_{type}" if type != "" else ""
 
         feature_batch = feature_detection(tokens_predict, feature_set)
@@ -199,11 +199,11 @@ class BASE(pl.LightningModule):
 
     def get_explainability_metrics_on_test_end(
         self,
-        scores: dict,
+        scores: Dict[Any, Any],
         feature_set: Set[str],
         tokens_predict: List[List[str]],
         type: str = "",
-    ) -> dict:
+    ) -> Dict[Any, Any]:
         type = f"_{type}" if type != "" else ""
         feature_batch = feature_detection(tokens_predict, feature_set)
         scores[f"div{type}"] = get_feature_diversity(feature_batch)
@@ -211,14 +211,14 @@ class BASE(pl.LightningModule):
         scores["usr"], scores["usn"] = get_unique_sentence_ratio(tokens_predict)
         return scores
 
-    def feature_id2token(self, feature: torch.Tensor):
+    def feature_id2token(self, feature: torch.Tensor) -> List[Optional[str]]:
         feature_test = [
             self.storage.word_dict.idx2word[i] if i != -100 else None
             for i in feature.view(-1).tolist()
         ]  # ids to words
         return feature_test
 
-    def on_test_epoch_end(self):
+    def on_test_epoch_end(self) -> Any:
         non_score_cols = [
             "rating",
             "rating_predict",
@@ -260,7 +260,7 @@ class BASE(pl.LightningModule):
         if self.save_root != "":
             pd.DataFrame(results).to_csv(
                 f"{self.save_root}/{self.save_root.rsplit('/', 1)[-1]}_result.csv",
-                index=None,
+                index=False,
             )
 
         return scores
@@ -363,7 +363,7 @@ class TransformerEncoderLayer(nn.Module):
         self.dropout2 = nn.Dropout(dropout_ratio)
         self.activation = get_activation_fn(activation_type)
 
-    def __setstate__(self, state: dict):
+    def __setstate__(self, state: Dict[Any, Any]):
         if "activation" not in state:
             state["activation"] = F.relu
         super().__setstate__(state)
@@ -614,9 +614,10 @@ class Recommender(BASE):
         self.user_embeddings.weight.data.uniform_(-init_range, init_range)
         self.item_embeddings.weight.data.uniform_(-init_range, init_range)
 
-    def forward(self, user, item):
+    def forward(self, user, item) -> List[float]:
         u_src = self.user_embeddings(user)
         i_src = self.item_embeddings(item)
+        rating = None
         if self.rec_type == "mf":
             rating = self.recommender(u_src, i_src)
         elif self.rec_type == "mlp":
@@ -624,6 +625,7 @@ class Recommender(BASE):
             rating = self.recommender(ui_src)
         elif self.rec_type == "transformer":
             rating = self.recommender(u_src, i_src)
+        assert rating is not None, "rating should be included"
         return rating
 
     def lossfun(self, rating_pred, rating_gt):
@@ -682,10 +684,10 @@ class Recommender(BASE):
         }
         if self.save_root != "":
             pd.DataFrame(results).to_csv(
-                f"{self.save_root}/result_pretrain.csv", index=None
+                f"{self.save_root}/result_pretrain.csv", index=False
             )
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Any:
         optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )

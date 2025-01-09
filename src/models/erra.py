@@ -1,5 +1,5 @@
 import math
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -24,8 +24,8 @@ class ERRA(PETER):
         n_tokens: int,
         pad_idx: int,
         storage: ReviewDataLoader,
-        user_profile_embeds: Optional[torch.Tensor] = None,
-        item_profile_embeds: Optional[torch.Tensor] = None,
+        user_profile_embeds: torch.Tensor,
+        item_profile_embeds: torch.Tensor,
         max_seq_len: int = 15,
         reg_text: float = 1.0,
         reg_context: float = 1.0,
@@ -147,7 +147,8 @@ class ERRA(PETER):
 
         rating, log_context_dis = None, None
         if rating_prediction:
-            rating = self.predict_rating(hidden, u_src, i_src)  # (batch_size,)
+            hid = torch.cat([hidden[1], u_src, i_src], dim=1)
+            rating = self.predict_rating(hid)  # (batch_size,)
         if context_prediction:
             log_context_dis = self.predict_context(hidden)  # (batch_size, ntoken)
 
@@ -171,7 +172,8 @@ class ERRA(PETER):
         rating_pred,
         rating,
         asp=None,
-    ):
+    ) -> Dict[str, Any]:
+        assert asp is not None, "asp should be included"
         context_dis = log_context_dis.unsqueeze(0).repeat(
             (self.tgt_len - 1, 1, 1)
         )  # (batch_size, ntoken) -> (tgt_len - 1, batch_size, ntoken)
@@ -289,12 +291,11 @@ class ERRA(PETER):
         )
         return outputs
 
-    def predict_rating(self, hidden, u_src, i_src):
-        hal = torch.cat([hidden[1], u_src, i_src], dim=1)
-        rating = self.base_recommender(hal)
+    def predict_rating(self, hidden):
+        rating = self.base_recommender(hidden)
         return rating
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Any:
         optimizer = torch.optim.SGD(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )

@@ -2,7 +2,7 @@ import logging
 import os
 import random
 from logging import config
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
@@ -40,7 +40,7 @@ def set_random_seed(seed: int):
     torch.backends.cudnn.benchmark = False
 
 
-def load_config(name: str = "common") -> DictConfig:
+def load_config(name: str = "common") -> Any:  # -> DictConfig
     cli_conf = OmegaConf.from_cli()
     base_conf = OmegaConf.load(f"conf/{name}.yaml")
     base_conf = OmegaConf.merge(base_conf, cli_conf)
@@ -53,7 +53,7 @@ def generate_path_save_root(dataset: str, model: str) -> str:
     return f"./outputs/{dataset}/{model}"
 
 
-def create_config() -> DictConfig:
+def create_config() -> Any:  # -> DictConfig
     cli_conf = OmegaConf.from_cli()
     base_conf = OmegaConf.load(cli_conf.config)
     merged_conf = OmegaConf.merge(base_conf, cli_conf)

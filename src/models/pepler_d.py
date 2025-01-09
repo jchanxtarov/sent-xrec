@@ -1,6 +1,6 @@
 from statistics import mean
+from typing import Any, Dict
 
-import pandas as pd
 import torch
 from torch import nn
 from transformers import GPT2LMHeadModel, PreTrainedTokenizer
@@ -150,15 +150,11 @@ class PEPLER_D(BASE):
             text_predict,
         )
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Any:
         optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer, mode="min", factor=self.opt_factor, patience=self.opt_step_size
-        # )
         return {
             "optimizer": optimizer,
-            # "lr_scheduler": scheduler,
             "monitor": "valid/loss",
         }

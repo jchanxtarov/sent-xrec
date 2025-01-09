@@ -1,17 +1,9 @@
-import ast
 import logging
 import os
-import pickle
-import random
-import re
 from collections import Counter
-from typing import Any, List, Optional
+from typing import Optional
 
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from tqdm import tqdm
-
-from loaders.tools import filter_words
 
 
 def data_loader(

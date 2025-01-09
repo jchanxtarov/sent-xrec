@@ -1,5 +1,3 @@
-import torch
-
 from models.common import MLPRating
 from models.peter import PETER
 

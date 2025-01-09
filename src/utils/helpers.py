@@ -63,7 +63,7 @@ def get_loader(
     config: DictConfig,
     logger: Logger,
     for_recommender: bool = False,
-) -> Tuple[LightningDataModule, Dict[str, int]]:
+) -> Tuple[LightningDataModule, Dict[str, int], Optional[GPT2Tokenizer]]:
     if config.dataset in ["ratebeer", "amazon_movie", "tripadvisor", "yelp"]:
         reviews = data_loader(
             logger,
@@ -75,24 +75,14 @@ def get_loader(
         raise NotImplementedError()
 
     bos_token, eos_token, pad_token = "<bos>", "<eos>", "<pad>"
-    special_tokens = {
-        "bos_token": bos_token,
-        "eos_token": eos_token,
-        "pad_token": pad_token,
-    }
     tokenizer = None
-
     if config.model.name in ["pepler", "pepler_d"]:
         tokenizer = GPT2TokenizerFast.from_pretrained(
             config.model.pretrained_model_name,
-            **special_tokens,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            pad_token=pad_token,
         )
-
-    batch_size = (
-        config.trainer.batch_size
-        if for_recommender is False
-        else config.trainer_pretrain.batch_size
-    )
 
     loader = XRecDataModule(
         reviews=reviews,
@@ -319,7 +309,6 @@ def get_model(
             checkpoint_path=config.pretrain.checkpoint_dir,
             n_users=stats["n_users"],
             n_items=stats["n_items"],
-            d_embed=config.model.d_embed,
             storage=storage,
             rec_type=config.pretrain.type,
             n_hidden_layers=config.pretrain.mlp_n_hidden_layers,
@@ -340,6 +329,25 @@ def get_trainer(
     save_root: str,
     for_recommender: bool = False,
 ) -> Trainer:
+    checkpoint_callback = ModelCheckpoint(
+        monitor="valid/loss" if for_recommender is False else "pretrain/valid/loss",
+        mode="min",
+        filename="model" if for_recommender is False else "recommender",
+        dirpath=save_root,
+        save_last=False,
+    )
+
+    early_stop_callback = EarlyStopping(
+        monitor="valid/loss" if for_recommender is False else "pretrain/valid/loss",
+        patience=(
+            config.trainer.patience
+            if for_recommender is False
+            else config.trainer_pretrain.patience
+        ),
+        mode="min",
+    )
+    if config.save_model:
+        ensure_file(save_root)
 
     progress_bar = RichProgressBar(
         theme=RichProgressBarTheme(
@@ -352,29 +360,8 @@ def get_trainer(
             metrics="grey82",
         )
     )
-    callbacks = [progress_bar]
-
-    monitor = "valid/loss"
-    early_stop_callback = EarlyStopping(
-        monitor=monitor if for_recommender is False else "pretrain/valid/loss",
-        patience=(
-            config.trainer.patience
-            if for_recommender is False
-            else config.trainer_pretrain.patience
-        ),
-        mode="min",
-    )
-    callbacks.append(early_stop_callback)
-
+    callbacks = [progress_bar, early_stop_callback]
     if config.save_model:
-        ensure_file(save_root)
-        checkpoint_callback = ModelCheckpoint(
-            monitor=monitor if for_recommender is False else "pretrain/valid/loss",
-            mode="min",
-            filename="model" if for_recommender is False else "recommender",
-            dirpath=save_root,
-            save_last=False,
-        )
         callbacks.append(checkpoint_callback)
 
     logger = False
@@ -470,7 +457,7 @@ def pretrain_recommender(
 
 def get_predictions(
     recommender: Recommender,
-    dataloader: LightningDataModule,
+    dataloader: torch.utils.data.DataLoader,
 ) -> Tuple[List[float], List[float]]:
     recommender.eval()
     recommender.freeze()

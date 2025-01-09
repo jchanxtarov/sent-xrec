@@ -1,6 +1,5 @@
 import math
-from statistics import mean
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import torch
@@ -146,6 +145,7 @@ class PETER(BASE):
         src = torch.cat([u_src, i_src], 0)
 
         if self.type_rating_embedding is not None:
+            r_src = None
             if self.type_rating_embedding == 0:
                 r_src = self.rating_embedding.weight.data.unsqueeze(0).expand(
                     -1, batch_size, -1
@@ -158,6 +158,7 @@ class PETER(BASE):
                     (pre_pred_rating / int(self.max_rating / self.n_rating_embedding))
                 ).to(torch.int)
                 r_src = self.rating_embedding(pre_pred_rating).unsqueeze(0)
+            assert r_src is not None, "r_src should be included"
             src = torch.cat([src, r_src], 0)
 
         w_src = torch.transpose(
@@ -314,6 +315,7 @@ class PETER(BASE):
                 _, log_word_prob, log_context_dis, rating_pred, _ = self.forward(
                     user, item, pre_pred_rating, text, False
                 )  # (batch_size, ntoken), (batch_size, ntoken), (batch_size,)
+                assert rating_pred is not None, "rating_pred is should be included"
                 if isinstance(rating_pred, tuple):
                     rating_pred = rating_pred[0]
                 rating_predict.extend(rating_pred.tolist())
@@ -389,7 +391,7 @@ class PETER(BASE):
         log_word_prob = F.log_softmax(word_prob, dim=-1)
         return word_prob, log_word_prob
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Any:
         optimizer = torch.optim.SGD(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )

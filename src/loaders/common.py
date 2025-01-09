@@ -1,5 +1,4 @@
-from collections import defaultdict
-from typing import Any, List, Optional
+from typing import Any, Dict, Optional
 
 import lightning as pl
 import torch
@@ -14,7 +13,7 @@ class XRecDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        reviews: dict,
+        reviews: Dict[Any, Any],
         batch_size: int,
         max_seq_len: int,
         max_vocab_size: int,
@@ -40,11 +39,7 @@ class XRecDataModule(pl.LightningDataModule):
         self.tokenizer = tokenizer
         self.is_recommender = is_recommender
 
-        self.train_dataset = None
-        self.valid_dataset = None
-        self.test_dataset = None
-
-    def setup(self, stage):
+    def setup(self, stage: str):
         if self.tokenizer is not None:
             self.train_dataset = XRecTokenizerDataset(
                 data=self.storage.train,
@@ -160,7 +155,6 @@ class XRecDataset(Dataset):
         self.is_recommender = is_recommender
         self.use_aspect = False
         self.use_pred_rating = False
-        self.use_feat_ui_retrieval = False
 
         u, i, r, t, f, fa, a, pr = [], [], [], [], [], [], [], []
         for x in data:
@@ -183,7 +177,7 @@ class XRecDataset(Dataset):
                 self.use_aspect = True
                 a.append(x["aspect"])
 
-            if "pred_rating" in x.keys():  # pepler
+            if "pred_rating" in x.keys():  # peter
                 self.use_pred_rating = True
                 pr.append(x["pred_rating"])
 
@@ -196,10 +190,6 @@ class XRecDataset(Dataset):
 
         if self.use_aspect:
             self.aspect = torch.tensor(a, dtype=torch.int64).contiguous()
-
-        if self.use_feat_ui_retrieval:
-            self.fui_pos = torch.tensor(fui_pos, dtype=torch.int64).contiguous()
-            self.fui_neg = torch.tensor(fui_neg, dtype=torch.int64).contiguous()
 
         if self.use_pred_rating:
             self.pred_rating = torch.tensor(pr, dtype=torch.float).contiguous()
@@ -276,6 +266,10 @@ class XRecTokenizerDataset(Dataset):
             if "retrieved_feats_ui" in x.keys():  # pepler-d
                 self.use_feat_ui_retrieval = True
                 fui.append(x["retrieved_feats_ui"])
+
+            if "pred_rating" in x.keys():  # pepler, pemdm
+                self.use_pred_rating = True
+                pr.append(x["pred_rating"])
 
         self.user = torch.tensor(u, dtype=torch.int64).contiguous()
         self.item = torch.tensor(i, dtype=torch.int64).contiguous()
