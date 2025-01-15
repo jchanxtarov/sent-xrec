@@ -89,7 +89,8 @@ class ReviewDataLoader:
                 data.update({"textids": self.__seq2ids(tem)})
             else:
                 tokens = self.tokenizer(tem)["input_ids"]
-                text = self.tokenizer.decode(tokens[: self.seq_len])
+                decoded_text = self.tokenizer.decode(tokens)
+                text = " ".join(decoded_text.split()[: self.seq_len])
                 data.update({"text": text})
 
             self.feature_pos_set.append(pos)
