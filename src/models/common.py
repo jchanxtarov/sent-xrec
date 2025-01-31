@@ -1,4 +1,5 @@
 import copy
+import logging
 import math
 import re
 from collections import defaultdict
@@ -26,6 +27,18 @@ from metrics.tools import (
     get_rouge_score,
     get_unique_sentence_ratio,
 )
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+    )
+    logger.addHandler(handler)
 
 
 class BASE(pl.LightningModule):

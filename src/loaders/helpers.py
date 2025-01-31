@@ -1,4 +1,5 @@
 import heapq
+import logging
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -10,6 +11,8 @@ from tqdm.contrib import tenumerate
 from transformers import PreTrainedTokenizer
 
 from loaders.tools import get_cos_sim
+
+logger = logging.getLogger(__name__)
 
 
 class ReviewDataLoader:
@@ -348,8 +351,8 @@ class ReviewDataLoader:
             reviews[i]["retrieved_feats_ui"] = " ".join(feats[:n_features])
 
             if i % 10000 == 0:
-                print(
-                    "[test] reviews[i]['retrieved_feats_ui']: ",
+                logger.debug(
+                    "[test] reviews[i]['retrieved_feats_ui']: %s",
                     reviews[i]["retrieved_feats_ui"],
                 )
 

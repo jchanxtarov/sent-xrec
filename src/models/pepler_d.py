@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -6,6 +7,8 @@ from transformers import GPT2LMHeadModel, PreTrainedTokenizer
 
 from loaders.helpers import ReviewDataLoader
 from models.common import BASE, ids2tokens_tokenizer
+
+logger = logging.getLogger(__name__)
 
 
 class PEPLER_D(BASE):
@@ -145,8 +148,11 @@ class PEPLER_D(BASE):
         # (test)
         if batch_idx % 500 == 0:
             _, _, text, text_pred = self.generate(feat_ui, mask_feat_ui, seq)
-            print(
-                f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} | text_pred: {text_pred[0]}"
+            logger.info(
+                "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
+                batch_idx,
+                text[0],
+                text_pred[0],
             )
 
         output, labels = self.forward(feat_ui, mask_feat_ui, seq, mask)

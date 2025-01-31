@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -6,6 +7,8 @@ from transformers import GPT2LMHeadModel, PreTrainedTokenizer
 
 from loaders.helpers import ReviewDataLoader
 from models.common import BASE, MFRating, MLPRating, ids2tokens_tokenizer
+
+logger = logging.getLogger(__name__)
 
 
 class PEPLER(BASE):
@@ -288,17 +291,19 @@ class PEPLER(BASE):
             torch.Tensor: Training loss
         """
         user, item, rating, seq, mask, _, _, pre_pred_rating = batch
-        print("[test] rating: ", rating)
-        print("[test] pre_pred_rating: ", pre_pred_rating)
+        logger.debug("[test] rating: %s", rating)
+        logger.debug("[test] pre_pred_rating: %s", pre_pred_rating)
 
         # Diagnostic text generation
         if batch_idx % 500 == 0:
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq
             )
-            print(
-                f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} "
-                f"| text_pred: {text_pred[0]}"
+            logger.info(
+                "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
+                batch_idx,
+                text[0],
+                text_pred[0],
             )
 
         output, labels, rating_pred = self.forward(
@@ -366,19 +371,21 @@ class PEPLER(BASE):
                         param.requires_grad = True
                     self.phase = 2
                     self.num_epochs_no_improvement = 0
-                    print("[test] required_grad updated!")
+                    logger.info("[test] required_grad updated!")
                 elif self.phase == 2:
                     # Stopped by an EarlyStoppingCallback if implemented externally
                     if self.num_epochs_no_improvement > self.patience:
-                        print(
+                        logger.warning(
                             "[WARNING] Training should be stopped as no improvement "
                             "seen during final phase."
                         )
 
-            print(
-                f"[test] current_loss: {current_loss} | self.best_loss: {self.best_loss} "
-                f"| self.num_epochs_no_improvement: {self.num_epochs_no_improvement} "
-                f"| self.patience: {self.patience}"
+            logger.info(
+                "[test] current_loss: %s | self.best_loss: %s | self.num_epochs_no_improvement: %s | self.patience: %s",
+                current_loss,
+                self.best_loss,
+                self.num_epochs_no_improvement,
+                self.patience,
             )
 
     def test_step(
@@ -401,8 +408,8 @@ class PEPLER(BASE):
         user, item, rating, seq, _, feature, feature_neg, pre_pred_rating = (
             batch
         )
-        print("[test] rating: ", rating)
-        print("[test] pre_pred_rating: ", pre_pred_rating)
+        logger.debug("[test] rating: %s", rating)
+        logger.debug("[test] pre_pred_rating: %s", pre_pred_rating)
 
         (
             rating_predict,

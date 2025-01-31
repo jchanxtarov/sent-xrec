@@ -1,9 +1,11 @@
+import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from loaders.helpers import ReviewDataLoader
 from models.common import (
@@ -16,6 +18,8 @@ from models.common import (
     get_square_subsequent_mask,
     ids2tokens,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # NOTE: use_feature: (false, true) -> (PETER, PETER+)
@@ -357,8 +361,11 @@ class PETER(BASE):
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq, feature
             )
-            print(
-                f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} | text_pred: {text_pred[0]}"
+            logger.info(
+                "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
+                batch_idx,
+                text[0],
+                text_pred[0],
             )
 
         if self.use_feature:
