@@ -1,5 +1,5 @@
 import math
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -10,6 +10,22 @@ from models.peter import PETER
 
 
 class ERRA(PETER):
+    """Explainable Recommendation with Reciprocal Attention (ERRA) model.
+
+    This class implements the ERRA model which extends the PETER model by incorporating
+    reciprocal attention mechanisms and aspect-aware features for better explainable recommendations.
+
+    The model enhances the base PETER architecture by:
+    - Adding user and item profile embeddings
+    - Incorporating aspect-aware attention
+    - Using reciprocal attention for better user-item interaction modeling
+
+    Attributes:
+        user_profile_embeds (torch.Tensor): Pre-trained user profile embeddings
+        item_profile_embeds (torch.Tensor): Pre-trained item profile embeddings
+        reg_aspect (float): Regularization weight for aspect loss
+        base_recommender (MLPRating): MLP-based rating predictor
+    """
 
     def __init__(
         self,
@@ -40,6 +56,36 @@ class ERRA(PETER):
         check_n_samples: int = 3,
         save_root: str = "",
     ):
+        """Initialize the ERRA model.
+
+        Args:
+            d_embed (int): Dimension of embeddings
+            n_head (int): Number of attention heads
+            n_hid (int): Hidden dimension size
+            n_layers (int): Number of transformer layers
+            peter_mask (bool): Whether to use PETER-specific attention masking
+            n_users (int): Number of users in the dataset
+            n_items (int): Number of items in the dataset
+            src_len (int): Maximum source sequence length
+            n_tokens (int): Size of the vocabulary
+            pad_idx (int): Index used for padding
+            storage (ReviewDataLoader): Data loader for reviews
+            user_profile_embeds (torch.Tensor): Pre-trained user profile embeddings
+            item_profile_embeds (torch.Tensor): Pre-trained item profile embeddings
+            max_seq_len (int, optional): Maximum sequence length. Defaults to 15
+            reg_text (float, optional): Text regularization weight. Defaults to 1.0
+            reg_context (float, optional): Context regularization weight. Defaults to 1.0
+            reg_rating (float, optional): Rating regularization weight. Defaults to 0.1
+            reg_aspect (float, optional): Aspect regularization weight. Defaults to 0.02
+            dropout (float, optional): Dropout rate. Defaults to 0.2
+            opt_lr (float, optional): Learning rate. Defaults to 0.1
+            opt_wd (float, optional): Weight decay. Defaults to 1e-4
+            opt_factor (float, optional): Learning rate reduction factor. Defaults to 0.25
+            opt_step_size (int, optional): Steps between learning rate updates. Defaults to 1
+            check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 10
+            check_n_samples (int, optional): Number of samples to check. Defaults to 3
+            save_root (str, optional): Directory to save model outputs. Defaults to ""
+        """
         super().__init__(
             d_embed=d_embed,
             n_head=n_head,
@@ -71,7 +117,9 @@ class ERRA(PETER):
         if peter_mask:
             self.attn_mask = get_erra_mask(self.src_len, self.tgt_len)
         else:
-            self.attn_mask = get_square_subsequent_mask(self.src_len + self.tgt_len)
+            self.attn_mask = get_square_subsequent_mask(
+                self.src_len + self.tgt_len
+            )
 
         # (addition)
         self.reg_aspect = reg_aspect
@@ -84,17 +132,36 @@ class ERRA(PETER):
         self,
         user: torch.Tensor,
         item: torch.Tensor,
-        pre_pred_rating: torch.Tensor,
+        pre_pred_rating: Optional[torch.Tensor],
         text: torch.Tensor,
         seq_prediction: bool = True,
         context_prediction: bool = True,
         rating_prediction: bool = True,
-    ):
-        """
-        :return log_word_prob: target tokens (tgt_len, batch_size, ntoken) if seq_prediction=True; the last token (batch_size, ntoken) otherwise.
-        :return log_context_dis: (batch_size, ntoken) if context_prediction=True; None otherwise.
-        :return rating: (batch_size,) if rating_prediction=True; None otherwise.
-        :return attns: (n_layers, batch_size, total_len, total_len)
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+    ]:
+        """Forward pass of the ERRA model.
+
+        Args:
+            user (torch.Tensor): User indices tensor
+            item (torch.Tensor): Item indices tensor
+            pre_pred_rating (Optional[torch.Tensor]): Predicted ratings from previous step
+            text (torch.Tensor): Input text sequences
+            seq_prediction (bool, optional): Whether to predict sequences. Defaults to True
+            context_prediction (bool, optional): Whether to predict context. Defaults to True
+            rating_prediction (bool, optional): Whether to predict ratings. Defaults to True
+
+        Returns:
+            tuple: A tuple containing:
+                - word_prob (torch.Tensor): Word probabilities
+                - log_word_prob (torch.Tensor): Log word probabilities
+                - log_context_dis (Optional[torch.Tensor]): Log context distribution
+                - rating (Optional[torch.Tensor]): Predicted ratings
+                - attns (Optional[torch.Tensor]): Attention weights
         """
         device = user.device
         self.user_profile_embeds = self.user_profile_embeds.to(device)
@@ -115,7 +182,9 @@ class ERRA(PETER):
         right = (
             text[:, 4:] == self.pad_idx
         )  # replace pad_idx with True and others with False
-        key_padding_mask = torch.cat([left, right], 1)  # (batch_size, total_len)
+        key_padding_mask = torch.cat(
+            [left, right], 1
+        )  # (batch_size, total_len)
 
         u_src = self.user_embeddings(user)  # (batch_size, d_embed)
         i_src = self.item_embeddings(item)  # (batch_size, d_embed)
@@ -150,7 +219,9 @@ class ERRA(PETER):
             hid = torch.cat([hidden[1], u_src, i_src], dim=1)
             rating = self.predict_rating(hid)  # (batch_size,)
         if context_prediction:
-            log_context_dis = self.predict_context(hidden)  # (batch_size, ntoken)
+            log_context_dis = self.predict_context(
+                hidden
+            )  # (batch_size, ntoken)
 
         if seq_prediction:
             word_prob, log_word_prob = self.predict_sequence(
@@ -165,14 +236,28 @@ class ERRA(PETER):
 
     def lossfun(
         self,
-        log_context_dis,
-        word_prob,
-        log_word_prob,
-        seq,
-        rating_pred,
-        rating,
-        asp=None,
-    ) -> Dict[str, Any]:
+        log_context_dis: torch.Tensor,
+        word_prob: torch.Tensor,
+        log_word_prob: torch.Tensor,
+        seq: torch.Tensor,
+        rating_pred: torch.Tensor,
+        rating: torch.Tensor,
+        asp: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """Calculate the loss for the model.
+
+        Args:
+            log_context_dis (torch.Tensor): Log context distribution
+            word_prob (torch.Tensor): Word probabilities
+            log_word_prob (torch.Tensor): Log word probabilities
+            seq (torch.Tensor): Input sequence tensor
+            rating_pred (torch.Tensor): Predicted ratings
+            rating (torch.Tensor): Ground truth ratings
+            asp (Optional[torch.Tensor], optional): Aspect tensor. Defaults to None
+
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing different loss components
+        """
         assert asp is not None, "asp should be included"
         context_dis = log_context_dis.unsqueeze(0).repeat(
             (self.tgt_len - 1, 1, 1)
@@ -191,12 +276,16 @@ class ERRA(PETER):
         # see also: https://github.com/Complex-data/ERRA/blob/main/main.py#L197
         # Also, authors set reg_aspect with small value (0.02). -> We ignore it?
         (len_seq, batch_size, n_words) = log_word_prob.size()
-        bool_gt_asp = torch.zeros(batch_size, n_words, device=log_word_prob.device)
+        bool_gt_asp = torch.zeros(
+            batch_size, n_words, device=log_word_prob.device
+        )
         bool_gt_asp.scatter_(1, asp[:, :4], 1).to(log_word_prob.device)
         indices_per_sample = torch.arange(batch_size).unsqueeze(1)
         expanded_indices = indices_per_sample.repeat(1, len_seq).view(-1)
         bool_gt_asp = bool_gt_asp[expanded_indices]
-        loss_a = self.criterion_aspect(word_prob.view(-1, n_words), bool_gt_asp)
+        loss_a = self.criterion_aspect(
+            word_prob.view(-1, n_words), bool_gt_asp
+        )
 
         loss = (
             self.reg_text * loss_t
@@ -213,7 +302,18 @@ class ERRA(PETER):
             "loss_a": loss_a,
         }
 
-    def training_step(self, batch, batch_idx):
+    def training_step(
+        self, batch: Tuple[torch.Tensor, ...], batch_idx: int
+    ) -> torch.Tensor:
+        """Perform a single training step.
+
+        Args:
+            batch (Tuple[torch.Tensor, ...]): Batch of training data
+            batch_idx (int): Index of the current batch
+
+        Returns:
+            torch.Tensor: Training loss
+        """
         user, item, rating, seq, _, _, aspect = batch
 
         # (test)
@@ -233,11 +333,17 @@ class ERRA(PETER):
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
-        word_prob, log_word_prob, log_context_dis, rating_pred, _ = self.forward(
-            user, item, None, text
+        word_prob, log_word_prob, log_context_dis, rating_pred, _ = (
+            self.forward(user, item, None, text)
         )  # (tgt_len, batch_size, ntoken), (batch_size, ntoken), (batch_size,)
         output = self.lossfun(
-            log_context_dis, word_prob, log_word_prob, seq, rating_pred, rating, aspect
+            log_context_dis,
+            word_prob,
+            log_word_prob,
+            seq,
+            rating_pred,
+            rating,
+            aspect,
         )
 
         for k, v in output.items():
@@ -245,7 +351,15 @@ class ERRA(PETER):
 
         return output["loss"].to(torch.float32)
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(
+        self, batch: Tuple[torch.Tensor, ...], batch_idx: int
+    ) -> None:
+        """Perform a single validation step.
+
+        Args:
+            batch (Tuple[torch.Tensor, ...]): Batch of validation data
+            batch_idx (int): Index of the current batch
+        """
         user, item, rating, seq, _, _, aspect = batch
 
         if (
@@ -264,21 +378,46 @@ class ERRA(PETER):
         else:
             text = seq[:, :-1]  # (batch_size, src_len + tgt_len - 2)
 
-        word_prob, log_word_prob, log_context_dis, rating_pred, _ = self.forward(
-            user, item, None, text
+        word_prob, log_word_prob, log_context_dis, rating_pred, _ = (
+            self.forward(user, item, None, text)
         )  # (tgt_len, batch_size, ntoken), (batch_size, ntoken), (batch_size,)
         output = self.lossfun(
-            log_context_dis, word_prob, log_word_prob, seq, rating_pred, rating, aspect
+            log_context_dis,
+            word_prob,
+            log_word_prob,
+            seq,
+            rating_pred,
+            rating,
+            aspect,
         )
 
         for k, v in output.items():
             self.log_metrics(f"valid/{k}", v, on_step=False)
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
+    def test_step(
+        self,
+        batch: Tuple[torch.Tensor, ...],
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> Dict[str, Union[float, List[str]]]:
+        """Perform a single test step.
+
+        Args:
+            batch (Tuple[torch.Tensor, ...]): Batch of test data
+            batch_idx (int): Index of the current batch
+            dataloader_idx (int, optional): Index of the dataloader. Defaults to 0
+
+        Returns:
+            Dict[str, Union[float, List[str]]]: Dictionary containing test metrics
+        """
         user, item, rating, seq, feature, feature_neg, aspect = batch
-        rating_predict, tokens_test, tokens_predict, text_test, text_predict = (
-            self.generate(user, item, None, seq, aspect)
-        )
+        (
+            rating_predict,
+            tokens_test,
+            tokens_predict,
+            text_test,
+            text_predict,
+        ) = self.generate(user, item, None, seq, aspect)
         outputs = self.get_metrics(
             rating.tolist(),
             rating_predict,
@@ -291,16 +430,32 @@ class ERRA(PETER):
         )
         return outputs
 
-    def predict_rating(self, hidden):
+    def predict_rating(self, hidden: torch.Tensor) -> torch.Tensor:
+        """Predict rating from hidden states.
+
+        Args:
+            hidden (torch.Tensor): Hidden state tensor
+
+        Returns:
+            torch.Tensor: Predicted rating values
+        """
         rating = self.base_recommender(hidden)
         return rating
 
-    def configure_optimizers(self) -> Any:
+    def configure_optimizers(self) -> Dict[str, Any]:
+        """Configure optimizers and learning rate schedulers.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing optimizer and scheduler configuration
+        """
         optimizer = torch.optim.SGD(
             self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
         )
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode="min", factor=self.opt_factor, patience=self.opt_step_size
+            optimizer,
+            mode="min",
+            factor=self.opt_factor,
+            patience=self.opt_step_size,
         )
         return {
             "optimizer": optimizer,

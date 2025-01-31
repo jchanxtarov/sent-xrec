@@ -1,5 +1,5 @@
 #!/bin/bash
 
-bash scripts/download_amazon.sh
-bash scripts/download_yelp.sh
-bash scripts/download_ratebeer.sh
+bash src/scripts/download_amazon.sh
+bash src/scripts/download_yelp.sh
+bash src/scripts/download_ratebeer.sh

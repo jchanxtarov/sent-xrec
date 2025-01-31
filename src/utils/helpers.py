@@ -1,13 +1,34 @@
+"""Utility functions for model training and initialization.
+
+This module provides helper functions for initializing and configuring the training
+environment, data loaders, models, and trainers for recommendation systems. It includes
+functionality for setting up logging, loading configurations, and managing model
+training workflows.
+
+Main components:
+- Environment initialization
+- Data loader configuration
+- Model initialization
+- Training setup
+- Recommender pre-training
+"""
+
 import datetime
 import os
 import warnings
 from logging import Logger
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from lightning import LightningDataModule, LightningModule, Trainer
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
-from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
+from lightning.pytorch.callbacks import (
+    EarlyStopping,
+    ModelCheckpoint,
+    RichProgressBar,
+)
+from lightning.pytorch.callbacks.progress.rich_progress import (
+    RichProgressBarTheme,
+)
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, OmegaConf
 from transformers import GPT2Tokenizer, GPT2TokenizerFast, PreTrainedTokenizer
@@ -33,6 +54,16 @@ NOW = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 
 
 def initialize() -> Tuple[DictConfig, Logger, str]:
+    """Initialize training environment and configuration.
+
+    Sets up CUDA, random seeds, logging, and loads configuration.
+
+    Returns:
+        Tuple containing:
+            - config: DictConfig with model and training parameters
+            - logger: Configured logging instance
+            - save_root: Path to save model outputs
+    """
     torch.cuda.empty_cache()
     warnings.filterwarnings("ignore")
 
@@ -63,7 +94,23 @@ def get_loader(
     config: DictConfig,
     logger: Logger,
     for_recommender: bool = False,
-) -> Tuple[LightningDataModule, Dict[str, int], Optional[GPT2Tokenizer]]:
+) -> Tuple[LightningDataModule, Dict[str, Any], Optional[PreTrainedTokenizer]]:
+    """Create data loader and tokenizer based on configuration.
+
+    Args:
+        config: Configuration dictionary containing model and training parameters
+        logger: Logger instance for tracking setup progress
+        for_recommender: Whether loader is for recommender pretraining
+
+    Returns:
+        Tuple containing:
+            - loader: Configured PyTorch Lightning data module
+            - stats: Dictionary of dataset statistics including counts and indices
+            - tokenizer: Tokenizer instance if needed for the model, else None
+
+    Raises:
+        NotImplementedError: If specified dataset type is not supported
+    """
     if config.dataset in ["ratebeer", "amazon_movie", "tripadvisor", "yelp"]:
         reviews = data_loader(
             logger,
@@ -137,6 +184,23 @@ def get_model(
     save_root: str,
     tokenizer: PreTrainedTokenizer,
 ) -> Tuple[Optional[LightningModule], LightningModule]:
+    """Create model instances based on configuration.
+
+    Args:
+        config: Configuration dictionary
+        stats: Dataset statistics
+        storage: Data storage instance
+        save_root: Path to save outputs
+        tokenizer: Tokenizer instance
+
+    Returns:
+        Tuple containing:
+            - recommender: Optional recommender model
+            - model: Main model instance
+
+    Raises:
+        NotImplementedError: If model type is not supported
+    """
     if config.save_log is not True:
         save_root = ""
 
@@ -325,12 +389,26 @@ def get_model(
 
 def get_trainer(
     config: DictConfig,
-    stats: Dict[str, int],
+    stats: Dict[str, Any],
     save_root: str,
     for_recommender: bool = False,
 ) -> Trainer:
+    """Configure PyTorch Lightning trainer with callbacks and logging.
+
+    Args:
+        config: Configuration dictionary containing training parameters
+        stats: Dictionary of dataset statistics
+        save_root: Directory path for saving model outputs
+        for_recommender: Whether trainer is for recommender pre-training
+
+    Returns:
+        Configured PyTorch Lightning Trainer instance with appropriate callbacks
+        and settings based on the configuration
+    """
     checkpoint_callback = ModelCheckpoint(
-        monitor="valid/loss" if for_recommender is False else "pretrain/valid/loss",
+        monitor=(
+            "valid/loss" if for_recommender is False else "pretrain/valid/loss"
+        ),
         mode="min",
         filename="model" if for_recommender is False else "recommender",
         dirpath=save_root,
@@ -338,7 +416,9 @@ def get_trainer(
     )
 
     early_stop_callback = EarlyStopping(
-        monitor="valid/loss" if for_recommender is False else "pretrain/valid/loss",
+        monitor=(
+            "valid/loss" if for_recommender is False else "pretrain/valid/loss"
+        ),
         patience=(
             config.trainer.patience
             if for_recommender is False
@@ -381,7 +461,11 @@ def get_trainer(
             max_epochs=config.trainer_pretrain.epochs,
             logger=logger,
             callbacks=callbacks,
-            devices=torch.cuda.device_count() if torch.cuda.is_available() else "auto",
+            devices=(
+                torch.cuda.device_count()
+                if torch.cuda.is_available()
+                else "auto"
+            ),
             limit_train_batches=config.dev.limit_train_batches,  # None = full batches
             limit_val_batches=config.dev.limit_val_batches,  # None = full batches
             limit_test_batches=config.dev.limit_test_batches,  # None = full batches
@@ -392,7 +476,11 @@ def get_trainer(
             check_val_every_n_epoch=config.trainer.check_val_every_n_epoch,
             logger=logger,
             callbacks=callbacks,
-            devices=torch.cuda.device_count() if torch.cuda.is_available() else "auto",
+            devices=(
+                torch.cuda.device_count()
+                if torch.cuda.is_available()
+                else "auto"
+            ),
             limit_train_batches=config.dev.limit_train_batches,  # None = full batches
             limit_val_batches=config.dev.limit_val_batches,  # None = full batches
             limit_test_batches=config.dev.limit_test_batches,  # None = full batches
@@ -408,10 +496,30 @@ def pretrain_recommender(
     trainer: Trainer,
     recommender: Recommender,
     dataloader: LightningDataModule,
-    stats: Dict[str, int],
+    stats: Dict[str, Any],
     model: LightningModule,
 ) -> Tuple[LightningModule, LightningDataModule]:
+    """Pretrain the recommender model and prepare data for main training.
 
+    Handles the pretraining workflow for the recommender model, including:
+    - Model training if no checkpoint is provided
+    - Generating and storing predictions
+    - Updating dataloader configuration for main training
+
+    Args:
+        config: Configuration dictionary
+        logger: Logger instance for tracking progress
+        trainer: PyTorch Lightning trainer instance
+        recommender: Recommender model to be pretrained
+        dataloader: Data loader module
+        stats: Dataset statistics
+        model: Main model instance
+
+    Returns:
+        Tuple containing:
+            - model: Updated main model instance
+            - dataloader: Updated data loader configured for main training
+    """
     if config.model.type_rating_embedding is not None:
         train_predictions = None
         valid_predictions = None
@@ -421,9 +529,9 @@ def pretrain_recommender(
         else:
             if config.pretrain.checkpoint_dir == "":
                 trainer.fit(recommender, datamodule=dataloader)
-                logger.info("finish 1st stage pretraining.")
+                logger.info("finish 1st stage pre-training.")
             _ = trainer.test(recommender, datamodule=dataloader)
-            predict_dataloaders = dataloader.predict_dataloader()
+            predict_dataloaders = dataloader.predict_dataloaders()
             _, train_predictions = get_predictions(
                 recommender, predict_dataloaders["train"]
             )
@@ -459,6 +567,17 @@ def get_predictions(
     recommender: Recommender,
     dataloader: torch.utils.data.DataLoader,
 ) -> Tuple[List[float], List[float]]:
+    """Get rating predictions from a trained recommender model.
+
+    Args:
+        recommender: Trained recommender model instance
+        dataloader: DataLoader containing user-item pairs for prediction
+
+    Returns:
+        Tuple containing:
+            - targets: List of actual target ratings
+            - predictions: List of model predicted ratings
+    """
     recommender.eval()
     recommender.freeze()
 
@@ -473,4 +592,7 @@ def get_predictions(
                 pred_rating = pred_rating.unsqueeze(0)
             predictions.append(pred_rating)
 
-    return torch.cat(targets, dim=0).tolist(), torch.cat(predictions, dim=0).tolist()
+    return (
+        torch.cat(targets, dim=0).tolist(),
+        torch.cat(predictions, dim=0).tolist(),
+    )

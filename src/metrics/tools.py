@@ -1,6 +1,6 @@
 import math
 from collections import Counter, defaultdict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Union
 
 import torch
 from bert_score import score
@@ -10,8 +10,17 @@ from rouge_score import rouge_scorer
 
 def get_bleu_score(
     references: List[List[str]], hypothesis: List[List[str]], **kwargs
-) -> dict:
+) -> Dict[str, float]:
+    """Calculate BLEU scores for generated text.
 
+    Args:
+        references (List[List[str]]): List of reference token sequences
+        hypothesis (List[List[str]]): List of hypothesis token sequences
+        **kwargs: Additional arguments passed to corpus_bleu
+
+    Returns:
+        Dict[str, float]: Dictionary containing BLEU-1 to BLEU-4 scores
+    """
     scores: Dict[str, float] = defaultdict(float)
     weights = [
         (1.0, 0.0, 0.0, 0.0),
@@ -43,7 +52,16 @@ def get_bleu_score(
 def get_bert_score(
     references: List[str],
     hypothesis: List[str],
-) -> dict:
+) -> Dict[str, float]:
+    """Calculate BERTScore for generated text.
+
+    Args:
+        references (List[str]): List of reference texts
+        hypothesis (List[str]): List of hypothesis texts
+
+    Returns:
+        Dict[str, float]: Dictionary containing precision, recall, and F1 scores
+    """
     # see also: https://pypi.org/project/bert-score/
     # "en": roberta-large
     p, r, f1 = score(references, hypothesis, lang="en", verbose=False)
@@ -62,7 +80,16 @@ def get_bert_score(
 def get_rouge_score(
     references: List[str],
     hypothesis: List[str],
-) -> dict:
+) -> Dict[str, float]:
+    """Calculate ROUGE scores for generated text.
+
+    Args:
+        references (List[str]): List of reference texts
+        hypothesis (List[str]): List of hypothesis texts
+
+    Returns:
+        Dict[str, float]: Dictionary containing ROUGE-1, ROUGE-2, and ROUGE-L scores
+    """
     rouge_type = ["rouge1", "rouge2", "rougeL"]
 
     scores: Dict[str, float] = defaultdict(float)
@@ -85,6 +112,15 @@ def get_rouge_score(
 
 
 def is_two_sequence_same(sentence_a: List[str], sentence_b: List[str]) -> bool:
+    """Check if two sequences of tokens are identical.
+
+    Args:
+        sentence_a (List[str]): First sequence of tokens
+        sentence_b (List[str]): Second sequence of tokens
+
+    Returns:
+        bool: True if sequences are identical, False otherwise
+    """
     if len(sentence_a) != len(sentence_b):
         return False
     for word_a, word_b in zip(sentence_a, sentence_b):
@@ -93,7 +129,17 @@ def is_two_sequence_same(sentence_a: List[str], sentence_b: List[str]) -> bool:
     return True
 
 
-def get_unique_sentence_ratio(sequence_batch: List[List[str]]) -> Tuple[float, float]:
+def get_unique_sentence_ratio(
+    sequence_batch: List[List[str]],
+) -> Tuple[float, float]:
+    """Calculate the ratio of unique sentences in a batch.
+
+    Args:
+        sequence_batch (List[List[str]]): Batch of token sequences
+
+    Returns:
+        Tuple[float, float]: Tuple containing (unique sentence ratio, number of unique sentences)
+    """
     uniq_sequences: List[List[str]] = []
     for seq in sequence_batch:
         count = 0
@@ -110,6 +156,15 @@ def get_unique_sentence_ratio(sequence_batch: List[List[str]]) -> Tuple[float, f
 def feature_detection(
     seq_batch: List[List[str]], feature_pos: List[str]
 ) -> List[Set[str]]:
+    """Detect features in sequences of tokens.
+
+    Args:
+        seq_batch (List[List[str]]): Batch of token sequences
+        feature_pos (List[str]): List of positive features to detect
+
+    Returns:
+        List[Set[str]]: List of sets containing detected features for each sequence
+    """
     feature_batch = []
     for seq in seq_batch:
         feature_list = []
@@ -124,6 +179,15 @@ def feature_detection(
 def get_feature_matching_ratio(
     feature_batch: List[List[str]], test_feature: List[str]
 ) -> float:
+    """Calculate the ratio of matching features.
+
+    Args:
+        feature_batch (List[List[str]]): Batch of detected features
+        test_feature (List[str]): List of test features to match against
+
+    Returns:
+        float: Ratio of matching features
+    """
     numerator = 0
     denominator = 0
     for feat_set, feat in zip(feature_batch, test_feature):
@@ -141,6 +205,15 @@ def get_feature_matching_ratio(
 def get_feature_coverage_ratio(
     feature_batch: List[str], feature_pos: List[str]
 ) -> float:
+    """Calculate the ratio of features covered by the batch.
+
+    Args:
+        feature_batch (List[str]): Batch of features
+        feature_pos (List[str]): List of all possible features
+
+    Returns:
+        float: Feature coverage ratio
+    """
     feature_set: Set[str] = set()
     for feat in feature_batch:
         feature_set = feature_set | feat
@@ -149,6 +222,14 @@ def get_feature_coverage_ratio(
 
 
 def get_feature_diversity(feature_batch: List[Set[str]]) -> float:
+    """Calculate feature diversity in a batch.
+
+    Args:
+        feature_batch (List[Set[str]]): Batch of feature sets
+
+    Returns:
+        float: Feature diversity score
+    """
     n = len(feature_batch)
     numerator = 0
     for i, x in enumerate(feature_batch):
@@ -163,15 +244,35 @@ def get_feature_diversity(feature_batch: List[Set[str]]) -> float:
 
 
 def is_all_words_in_string(words: List[str], string: str) -> bool:
+    """Check if all words appear in a string.
+
+    Args:
+        words (List[str]): List of words to check
+        string (str): String to check against
+
+    Returns:
+        bool: True if all words are in the string, False otherwise
+    """
     return all(word in string for word in words)
 
 
 def get_mean_absolute_error(
-    predicted: Tuple[List[float], List[float]],
+    predicted: List[Tuple[float, float]],
     max_rating: float,
     min_rating: float,
     is_mae: bool = True,
 ) -> float:
+    """Calculate mean absolute error or mean squared error.
+
+    Args:
+        predicted (List[Tuple[float, float]]): List of (ground truth, prediction) pairs
+        max_rating (float): Maximum possible rating
+        min_rating (float): Minimum possible rating
+        is_mae (bool, optional): If True, calculate MAE; if False, calculate MSE. Defaults to True
+
+    Returns:
+        float: Mean absolute error or mean squared error
+    """
     total = 0.0
     for r, p in predicted:
         if p > max_rating:
@@ -189,7 +290,17 @@ def get_mean_absolute_error(
 
 
 def get_root_mean_square_error(
-    predicted: Tuple[List[float], List[float]], max_rating: float, min_rating: float
+    predicted: List[Tuple[float, float]], max_rating: float, min_rating: float
 ) -> float:
+    """Calculate root mean square error.
+
+    Args:
+        predicted (List[Tuple[float, float]]): List of (ground truth, prediction) pairs
+        max_rating (float): Maximum possible rating
+        min_rating (float): Minimum possible rating
+
+    Returns:
+        float: Root mean square error
+    """
     mse = get_mean_absolute_error(predicted, max_rating, min_rating, False)
     return math.sqrt(mse)

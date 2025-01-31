@@ -1,6 +1,6 @@
 import heapq
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import torch
@@ -13,6 +13,32 @@ from loaders.tools import get_cos_sim
 
 
 class ReviewDataLoader:
+    """A data loader class for handling review data with features for recommendation systems.
+
+    This class processes review data and provides functionality for loading, tokenizing,
+    and managing features related to user reviews, including text processing and feature extraction.
+
+    Attributes:
+        device (str): The device to use for computations ('cuda' or 'cpu')
+        word_dict (WordDictionary): Dictionary for managing word vocabularies
+        user_dict (EntityDictionary): Dictionary for managing user entities
+        item_dict (EntityDictionary): Dictionary for managing item entities
+        max_rating (float): Maximum rating value in the dataset
+        min_rating (float): Minimum rating value in the dataset
+        tokenizer (Optional[PreTrainedTokenizer]): Tokenizer for text processing
+        seq_len (int): Maximum sequence length for text
+        feature_pos_set (Set[str]): Set of positive features
+        feature_neg_set (Set[str]): Set of negative features
+        feature_pair_set (Set[str]): Set of feature pairs
+        train (List[Dict[Any, Any]]): Training dataset
+        valid (List[Dict[Any, Any]]): Validation dataset
+        test (List[Dict[Any, Any]]): Test dataset
+        user_profile_embeds (Optional[torch.Tensor]): User profile embeddings
+        item_profile_embeds (Optional[torch.Tensor]): Item profile embeddings
+        n_features (int): Number of features
+        n_retrieved_profs (int): Number of retrieved profiles
+    """
+
     def __init__(
         self,
         reviews: Dict[Any, Any],
@@ -20,7 +46,16 @@ class ReviewDataLoader:
         max_vocab_size: int = 20000,
         idx2word: List[str] = ["<bos>", "<eos>", "<pad>", "<unk>"],
         tokenizer: Optional[PreTrainedTokenizer] = None,
-    ):
+    ) -> None:
+        """Initialize the ReviewDataLoader.
+
+        Args:
+            reviews (Dict[Any, Any]): Dictionary containing review data
+            seq_len (int, optional): Maximum sequence length. Defaults to 15.
+            max_vocab_size (int, optional): Maximum vocabulary size. Defaults to 20000.
+            idx2word (List[str], optional): Initial word index list. Defaults to ["<bos>", "<eos>", "<pad>", "<unk>"].
+            tokenizer (Optional[PreTrainedTokenizer], optional): Tokenizer for text processing. Defaults to None.
+        """
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.word_dict = WordDictionary(idx2word)
@@ -33,17 +68,22 @@ class ReviewDataLoader:
         self.seq_len = seq_len
         self.word_dict.keep_most_frequent(max_vocab_size)
         self.__unk = self.word_dict.word2idx["<unk>"]
-        self.feature_pos_set = []
-        self.feature_neg_set = []
-        self.feature_pair_set = []
+        self.feature_pos_set: List[str] = []
+        self.feature_neg_set: List[str] = []
+        self.feature_pair_set: List[str] = []
         self.train, self.valid, self.test = self.load_data(reviews)
-        self.user_profile_embeds = None
-        self.item_profile_embeds = None
+        self.user_profile_embeds: Optional[torch.Tensor] = None
+        self.item_profile_embeds: Optional[torch.Tensor] = None
 
-        self.n_features = 0
-        self.n_retrieved_profs = 0
+        self.n_features: int = 0
+        self.n_retrieved_profs: int = 0
 
-    def initialize(self, reviews: Dict[Any, Any]):
+    def initialize(self, reviews: Dict[Any, Any]) -> None:
+        """Initialize the data loader with review data.
+
+        Args:
+            reviews (Dict[Any, Any]): Dictionary containing review data
+        """
         for review in reviews:
             self.user_dict.add_entity(review["user"])
             self.item_dict.add_entity(review["item"])
@@ -63,7 +103,18 @@ class ReviewDataLoader:
 
     def load_data(
         self, reviews: Dict[Any, Any]
-    ) -> Tuple[List[Dict[Any, Any]], List[Dict[Any, Any]], List[Dict[Any, Any]]]:
+    ) -> Tuple[
+        List[Dict[Any, Any]], List[Dict[Any, Any]], List[Dict[Any, Any]]
+    ]:
+        """Load and process the review data into train, validation, and test sets.
+
+        Args:
+            reviews (Dict[Any, Any]): Dictionary containing review data
+
+        Returns:
+            Tuple[List[Dict[Any, Any]], List[Dict[Any, Any]], List[Dict[Any, Any]]]:
+                Tuple containing train, validation, and test datasets
+        """
         train, valid, test = [], [], []
         for review in reviews:
             (pos, neg, tem) = review["template"]
@@ -111,23 +162,44 @@ class ReviewDataLoader:
         return train, valid, test
 
     def __seq2ids(self, seq: str) -> List[int]:
-        return [self.word_dict.word2idx.get(w, self.__unk) for w in seq.split()]
+        """Convert a sequence of words to their corresponding indices.
 
-    def __seq2ids_aspect(self, seq: List[str]):
+        Args:
+            seq (str): Input sequence of words
+
+        Returns:
+            List[int]: List of word indices
+        """
+        return [
+            self.word_dict.word2idx.get(w, self.__unk) for w in seq.split()
+        ]
+
+    def __seq2ids_aspect(self, seq: List[str]) -> List[int]:
+        """Convert a sequence of aspect words to their corresponding indices.
+
+        Args:
+            seq (List[str]): List of aspect words
+
+        Returns:
+            List[int]: List of aspect word indices, padded to length 4
+        """
         if len(seq) == 0:
             return [self.__unk for _ in range(4)]
         if len(seq) == 1:
             ids = [
-                self.word_dict.word2idx.get(w, self.__unk) for w in seq[0].split(" ")
+                self.word_dict.word2idx.get(w, self.__unk)
+                for w in seq[0].split(" ")
             ][:2]
             return ids + [self.__unk, self.__unk]
 
-        ids1 = [self.word_dict.word2idx.get(w, self.__unk) for w in seq[0].split(" ")][
-            :2
-        ]
-        ids2 = [self.word_dict.word2idx.get(w, self.__unk) for w in seq[1].split(" ")][
-            :2
-        ]
+        ids1 = [
+            self.word_dict.word2idx.get(w, self.__unk)
+            for w in seq[0].split(" ")
+        ][:2]
+        ids2 = [
+            self.word_dict.word2idx.get(w, self.__unk)
+            for w in seq[1].split(" ")
+        ][:2]
         return ids1 + ids2
 
     def __prepare_search_data(self, encoder_name: str = "") -> Tuple[
@@ -140,6 +212,22 @@ class ReviewDataLoader:
         List[str],
         List[str],
     ]:
+        """Prepare data for search operations.
+
+        Args:
+            encoder_name (str, optional): Name of the sentence transformer model. Defaults to "".
+
+        Returns:
+            Tuple containing:
+                - Optional[SentenceTransformer]: Sentence transformer model
+                - torch.Tensor: User indices for training
+                - torch.Tensor: Item indices for training
+                - torch.Tensor: Ratings for training
+                - List[str]: Training texts
+                - List[str]: Training features
+                - List[str]: Training negative features
+                - List[str]: Training feature pairs
+        """
         model = None
         if encoder_name != "":
             model = SentenceTransformer(encoder_name).to(self.device)
@@ -173,9 +261,13 @@ class ReviewDataLoader:
             feat_pos_neg_train,
         )
 
-    # (pepler-d)
-    # mode: 0 = pos only, 1 = neg only, 2 = both
-    def add_features_ui(self, n_features: int = 3, mode: int = 0):
+    def add_features_ui(self, n_features: int = 3, mode: int = 0) -> None:
+        """Add user-item features to the dataset.
+
+        Args:
+            n_features (int, optional): Number of features to add. Defaults to 3.
+            mode (int, optional): Feature mode (0=pos only, 1=neg only, 2=both). Defaults to 0.
+        """
         (
             _,
             useridxs_train,
@@ -209,16 +301,25 @@ class ReviewDataLoader:
 
     def __add_retrieved_features_ui(
         self,
-        reviews: Dict[Any, Any],
+        reviews: List[Dict[Any, Any]],
         useridxs_train: torch.Tensor,
         itemidxs_train: torch.Tensor,
         stores: List[str],
         n_features: int,
-    ):
+    ) -> None:
+        """Add retrieved features to user-item pairs.
+
+        Args:
+            reviews (List[Dict[Any, Any]]): List of reviews to process
+            useridxs_train (torch.Tensor): Training user indices
+            itemidxs_train (torch.Tensor): Training item indices
+            stores (List[str]): List of features to retrieve from
+            n_features (int): Number of features to retrieve
+        """
         for i, data in tenumerate(reviews, desc="Features Retrieval"):
-            user, item = torch.tensor(data["user"]).to(self.device), torch.tensor(
-                data["item"]
-            ).to(self.device)
+            user, item = torch.tensor(data["user"]).to(
+                self.device
+            ), torch.tensor(data["item"]).to(self.device)
 
             # 1. Get all past features granted from the target user
             idxs_candidate = torch.where(useridxs_train == user)[0]
@@ -255,11 +356,15 @@ class ReviewDataLoader:
                     reviews[i]["retrieved_feats_ui"],
                 )
 
-    # (erra)
     def add_aspects(
-        self,
-        encoder_name: str = "paraphrase-MiniLM-L6-v2",
-    ):  # for erra
+        self, encoder_name: str = "paraphrase-MiniLM-L6-v2"
+    ) -> None:
+        """Add aspects to the dataset using a sentence transformer model.
+
+        Args:
+            encoder_name (str, optional): Name of the sentence transformer model.
+                Defaults to "paraphrase-MiniLM-L6-v2".
+        """
         (
             model,
             useridxs_train,
@@ -272,7 +377,10 @@ class ReviewDataLoader:
         ) = self.__prepare_search_data(encoder_name)
         assert model is not None, "sentence encoder model should be included"
         embed_features_train = model.encode(
-            pos_neg_train, batch_size=128, convert_to_tensor=True, device=self.device
+            pos_neg_train,
+            batch_size=128,
+            convert_to_tensor=True,
+            device=self.device,
         )
 
         for d in [self.train, self.valid, self.test]:
@@ -286,16 +394,25 @@ class ReviewDataLoader:
 
     def __add_retrieved_aspects(
         self,
-        reviews: Dict[Any, Any],
+        reviews: List[Dict[Any, Any]],
         useridxs_train: torch.Tensor,
         itemidxs_train: torch.Tensor,
         pos_neg_train: List[str],
         embed_features_train: torch.Tensor,
-    ):
+    ) -> None:
+        """Add retrieved aspects to the reviews.
+
+        Args:
+            reviews (List[Dict[Any, Any]]): List of reviews to process
+            useridxs_train (torch.Tensor): Training user indices
+            itemidxs_train (torch.Tensor): Training item indices
+            pos_neg_train (List[str]): List of positive-negative feature pairs
+            embed_features_train (torch.Tensor): Embedded features for training
+        """
         for i, data in tenumerate(reviews, desc="Aspects Retrieval"):
-            user, item = torch.tensor(data["user"]).to(self.device), torch.tensor(
-                data["item"]
-            ).to(self.device)
+            user, item = torch.tensor(data["user"]).to(
+                self.device
+            ), torch.tensor(data["item"]).to(self.device)
 
             # 1. Get features (aspect candidates) of the target user
             idxs_candidate = torch.where(useridxs_train == user)[0]
@@ -315,12 +432,18 @@ class ReviewDataLoader:
                 aspects = [pos_neg_train[idx] for idx in sorted_idxs.tolist()]
             reviews[i]["aspect"] = self.__seq2ids_aspect(aspects)
 
-    # (erra)
     def add_profiles(
         self,
         encoder_name: str = "paraphrase-MiniLM-L6-v2",
         n_texts: int = 3,
-    ):  # for erra
+    ) -> None:
+        """Add user and item profiles using a sentence transformer model.
+
+        Args:
+            encoder_name (str, optional): Name of the sentence transformer model.
+                Defaults to "paraphrase-MiniLM-L6-v2".
+            n_texts (int, optional): Number of texts to include in profiles. Defaults to 3.
+        """
         (
             model,
             useridxs_train,
@@ -331,7 +454,7 @@ class ReviewDataLoader:
             _,
             _,
         ) = self.__prepare_search_data(encoder_name)
-        assert model is None, "sentence encoder model is not defined"
+        assert model is not None, "sentence encoder model is not defined"
         embed_exp_train = model.encode(
             texts_train,
             batch_size=128,
@@ -339,7 +462,11 @@ class ReviewDataLoader:
             device=self.device,
         )
         user_profiles, item_profiles = self.__generate_profiles(
-            useridxs_train, itemidxs_train, texts_train, embed_exp_train, n_texts
+            useridxs_train,
+            itemidxs_train,
+            texts_train,
+            embed_exp_train,
+            n_texts,
         )
         self.user_profile_embeds = model.encode(
             user_profiles,
@@ -361,9 +488,23 @@ class ReviewDataLoader:
         texts_train: List[str],
         embed_exp_train: torch.Tensor,
         n_texts: int = 3,
-    ):
+    ) -> Tuple[List[str], List[str]]:
+        """Generate user and item profiles from training data.
+
+        Args:
+            useridxs_train (torch.Tensor): Training user indices
+            itemidxs_train (torch.Tensor): Training item indices
+            texts_train (List[str]): Training texts
+            embed_exp_train (torch.Tensor): Embedded training texts
+            n_texts (int, optional): Number of texts to include in profiles. Defaults to 3.
+
+        Returns:
+            Tuple[List[str], List[str]]: Tuple containing user profiles and item profiles
+        """
         user_profiles = []
-        for i in tqdm(range(len(self.user_dict)), desc="Profile Retrieval (User)"):
+        for i in tqdm(
+            range(len(self.user_dict)), desc="Profile Retrieval (User)"
+        ):
             # 1. Pooling past reviews written by target users
             idxs_u = torch.where(useridxs_train == i)[0]
             embed_avg_u = torch.mean(embed_exp_train[idxs_u], dim=0)
@@ -371,12 +512,16 @@ class ReviewDataLoader:
             # 2. Getting some similar reviews from all user reviews
             scores = get_cos_sim(embed_avg_u, embed_exp_train)
             sorted_idxs = torch.argsort(scores, descending=True)
-            texts_profile = [texts_train[idx] for idx in sorted_idxs[:n_texts].tolist()]
+            texts_profile = [
+                texts_train[idx] for idx in sorted_idxs[:n_texts].tolist()
+            ]
             user_profile = " ".join(texts_profile)
             user_profiles.append(user_profile)
 
         item_profiles = []
-        for i in tqdm(range(len(self.item_dict)), desc="Profile Retrieval (Item)"):
+        for i in tqdm(
+            range(len(self.item_dict)), desc="Profile Retrieval (Item)"
+        ):
             # 1. Pooling past reviews written by target users
             idxs_i = torch.where(itemidxs_train == i)[0]
             embed_avg_i = torch.mean(embed_exp_train[idxs_i], dim=0)
@@ -384,13 +529,14 @@ class ReviewDataLoader:
             # 2. Getting some similar reviews from all item reviews
             scores = get_cos_sim(embed_avg_i, embed_exp_train)
             sorted_idxs = torch.argsort(scores, descending=True)
-            texts_profile = [texts_train[idx] for idx in sorted_idxs[:n_texts].tolist()]
+            texts_profile = [
+                texts_train[idx] for idx in sorted_idxs[:n_texts].tolist()
+            ]
             item_profile = " ".join(texts_profile)
             item_profiles.append(item_profile)
 
         return user_profiles, item_profiles
 
-    # (peter, pepler)
     def add_pred_rating(
         self,
         train_ratings: Optional[List[float]],
@@ -400,7 +546,21 @@ class ReviewDataLoader:
         noise_std: float = 0,
         min_rating: int = 1,
         max_rating: int = 5,
-    ):
+    ) -> Tuple[float, float]:
+        """Add predicted ratings to the dataset.
+
+        Args:
+            train_ratings (Optional[List[float]]): Predicted ratings for training set
+            valid_ratings (Optional[List[float]]): Predicted ratings for validation set
+            test_ratings (Optional[List[float]]): Predicted ratings for test set
+            leak_rating (bool, optional): Whether to leak true ratings. Defaults to False.
+            noise_std (float, optional): Standard deviation of noise to add. Defaults to 0.
+            min_rating (int, optional): Minimum rating value. Defaults to 1.
+            max_rating (int, optional): Maximum rating value. Defaults to 5.
+
+        Returns:
+            Tuple[float, float]: Tuple containing MAE and RMSE metrics
+        """
         errors = np.zeros(len(self.test))
 
         # (train)
@@ -439,17 +599,44 @@ class ReviewDataLoader:
 
 
 class WordDictionary:
-    def __init__(self, idx2word: List[str] = ["<bos>", "<eos>", "<pad>", "<unk>"]):
+    """A dictionary class for managing word vocabularies.
+
+    Attributes:
+        idx2word (List[str]): List of words indexed by their IDs
+        word2idx (Dict[str, int]): Dictionary mapping words to their IDs
+        __word2count (Dict[str, int]): Dictionary tracking word frequencies
+        __num_predefine_words (int): Number of predefined special words
+    """
+
+    def __init__(
+        self, idx2word: List[str] = ["<bos>", "<eos>", "<pad>", "<unk>"]
+    ) -> None:
+        """Initialize the WordDictionary.
+
+        Args:
+            idx2word (List[str], optional): Initial list of words.
+                Defaults to ["<bos>", "<eos>", "<pad>", "<unk>"].
+        """
         self.idx2word = idx2word
         self.word2idx = {word: idx for idx, word in enumerate(self.idx2word)}
-        self.__word2count = {}
+        self.__word2count: Dict[str, int] = {}
         self.__num_predefine_words = len(self.idx2word)
 
-    def add_sentence(self, sentence: str):
+    def add_sentence(self, sentence: str) -> None:
+        """Add all words in a sentence to the dictionary.
+
+        Args:
+            sentence (str): Input sentence to process
+        """
         for word in sentence.split():
             self.add_word(word)
 
-    def add_word(self, word: str):
+    def add_word(self, word: str) -> None:
+        """Add a single word to the dictionary.
+
+        Args:
+            word (str): Word to add
+        """
         if word not in self.word2idx:
             self.word2idx[word] = len(self.idx2word)
             self.idx2word.append(word)
@@ -458,26 +645,58 @@ class WordDictionary:
             self.__word2count[word] += 1
 
     def __len__(self) -> int:
+        """Get the size of the dictionary.
+
+        Returns:
+            int: Number of words in the dictionary
+        """
         return len(self.idx2word)
 
-    def keep_most_frequent(self, max_vocab_size: int = 20000):
+    def keep_most_frequent(self, max_vocab_size: int = 20000) -> None:
+        """Keep only the most frequent words up to max_vocab_size.
+
+        Args:
+            max_vocab_size (int, optional): Maximum vocabulary size. Defaults to 20000.
+        """
         if len(self.__word2count) > max_vocab_size:
             freq_words = heapq.nlargest(
                 max_vocab_size, self.__word2count, key=self.__word2count.get
             )
-            self.idx2word = freq_words + self.idx2word[: self.__num_predefine_words]
-            self.word2idx = {word: idx for idx, word in enumerate(self.idx2word)}
+            self.idx2word = (
+                freq_words + self.idx2word[: self.__num_predefine_words]
+            )
+            self.word2idx = {
+                word: idx for idx, word in enumerate(self.idx2word)
+            }
 
 
 class EntityDictionary:
-    def __init__(self):
-        self.entity2idx = {}
-        self.idx2entity = []
+    """A dictionary class for managing entities (users/items).
 
-    def add_entity(self, entity: Any):
+    Attributes:
+        entity2idx (Dict[Any, int]): Dictionary mapping entities to their IDs
+        idx2entity (List[Any]): List of entities indexed by their IDs
+    """
+
+    def __init__(self) -> None:
+        """Initialize the EntityDictionary."""
+        self.entity2idx: Dict[Any, int] = {}
+        self.idx2entity: List[Any] = []
+
+    def add_entity(self, entity: Any) -> None:
+        """Add an entity to the dictionary.
+
+        Args:
+            entity (Any): Entity to add
+        """
         if entity not in self.entity2idx:
             self.entity2idx[entity] = len(self.idx2entity)
             self.idx2entity.append(entity)
 
     def __len__(self) -> int:
+        """Get the size of the dictionary.
+
+        Returns:
+            int: Number of entities in the dictionary
+        """
         return len(self.idx2entity)
