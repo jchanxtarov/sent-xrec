@@ -1,4 +1,3 @@
-from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -92,7 +91,7 @@ class PEPLER_D(BASE):
 
         Returns:
             tuple: A tuple containing:
-                - model_output: Output from the language model
+                - model_output (Any): Output from the language model
                 - labels (Optional[torch.Tensor]): Labels for masked tokens
         """
         device = feat_ui.device
@@ -116,11 +115,11 @@ class PEPLER_D(BASE):
         """Calculate the loss for the model.
 
         Args:
-            output: Output from the language model
+            output (Any): Output from the language model
             labels (torch.Tensor): Ground truth labels
 
         Returns:
-            Dict[str, torch.Tensor]: Dictionary containing loss value
+            Dict[str, torch.Tensor]: Dictionary containing the loss value
         """
         shift_logits = output.logits[..., -labels.size(1) : -1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
@@ -237,6 +236,7 @@ class PEPLER_D(BASE):
         _, src_len = feat_ui.size()
         idxs = seq[:, 0].unsqueeze(1)  # bos, (batch_size, 1)
         idxs_predict = []
+
         for _ in range(self.max_seq_len):
             outputs, _ = self.forward(feat_ui, mask_feat_ui, idxs, None)
             last_token = outputs.logits[:, -1, :]
@@ -249,11 +249,12 @@ class PEPLER_D(BASE):
         idxs_predict.extend(idxs)
 
         tokens_test = [
-            ids2tokens_tokenizer(idxs[1:], self.tokenizer)
-            for idxs in seq.tolist()
+            ids2tokens_tokenizer(ids_seq[1:], self.tokenizer)
+            for ids_seq in seq.tolist()
         ]
         tokens_predict = [
-            ids2tokens_tokenizer(idxs, self.tokenizer) for idxs in idxs_predict
+            ids2tokens_tokenizer(ids_seq, self.tokenizer)
+            for ids_seq in idxs_predict
         ]
         text_test = [" ".join(tokens) for tokens in tokens_test]
         text_predict = [
@@ -261,12 +262,7 @@ class PEPLER_D(BASE):
             for tokens in tokens_predict
         ]
 
-        return (
-            tokens_test,
-            tokens_predict,
-            text_test,
-            text_predict,
-        )
+        return tokens_test, tokens_predict, text_test, text_predict
 
     def configure_optimizers(self) -> Dict[str, Any]:
         """Configure optimizers for training.

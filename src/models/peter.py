@@ -1,7 +1,6 @@
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -155,9 +154,8 @@ class PETER(BASE):
 
         self.initialize_tokens()
 
-        self.criterion_text = nn.NLLLoss(
-            ignore_index=pad_idx
-        )  # ignore the padding when computing loss
+        # Ignore the padding when computing cross-entropy for text
+        self.criterion_text = nn.NLLLoss(ignore_index=pad_idx)
         self.criterion_rating = nn.MSELoss()
 
     def initialize_tokens(self):
@@ -203,11 +201,11 @@ class PETER(BASE):
 
         Returns:
             tuple: A tuple containing:
-                - log_context_dis (torch.Tensor): Log context distribution
                 - word_prob (torch.Tensor): Word probabilities
                 - log_word_prob (torch.Tensor): Log word probabilities
+                - log_context_dis (torch.Tensor): Log context distribution
                 - rating_pred (torch.Tensor): Predicted ratings
-                - feature (Optional[torch.Tensor]): Additional features if use_feature is True
+                - attns (torch.Tensor): Attention weights
         """
         device = user.device
         batch_size = user.size(0)
@@ -225,6 +223,7 @@ class PETER(BASE):
             [left, right], 1
         )  # (batch_size, total_len)
 
+        # Embed user and item
         u_src = self.user_embeddings(
             user.unsqueeze(0)
         )  # (1, batch_size, d_embed)
@@ -233,13 +232,15 @@ class PETER(BASE):
         )  # (1, batch_size, d_embed)
         src = torch.cat([u_src, i_src], 0)
 
+        # Rating embedding
         if self.type_rating_embedding is not None:
-            r_src = None
             if self.type_rating_embedding == 0:
+                # Single embedding scaled by the predicted rating
                 r_src = self.rating_embedding.weight.data.unsqueeze(0).expand(
                     -1, batch_size, -1
                 ) * pre_pred_rating.unsqueeze(0).unsqueeze(2)
             elif self.type_rating_embedding == 1:
+                # Discrete embedding with rounding/clamping of predicted rating
                 pre_pred_rating = torch.clamp(
                     pre_pred_rating, min=self.min_rating, max=self.max_rating
                 )
@@ -250,7 +251,6 @@ class PETER(BASE):
                     )
                 ).to(torch.int)
                 r_src = self.rating_embedding(pre_pred_rating).unsqueeze(0)
-            assert r_src is not None, "r_src should be included"
             src = torch.cat([src, r_src], 0)
 
         w_src = torch.transpose(
@@ -265,6 +265,7 @@ class PETER(BASE):
         )  # (total_len, batch_size, d_embed), (n_layers, batch_size, total_len_tgt, total_len_src)
 
         rating, log_context_dis = None, None
+
         if rating_prediction:
             rating = self.predict_rating(hidden)  # (batch_size,)
         if context_prediction:
@@ -286,13 +287,30 @@ class PETER(BASE):
     def lossfun(
         self,
         log_context_dis: torch.Tensor,
-        word_prob: torch.Tensor,
+        word_prob: torch.Tensor,  # Not use
         log_word_prob: torch.Tensor,
         seq: torch.Tensor,
         rating_pred: torch.Tensor,
         rating: torch.Tensor,
-        asp: Optional[torch.Tensor] = None,
+        asp: str = None,  # Not used
     ) -> Dict[str, torch.Tensor]:
+        """Compute the overall loss for the PETER model.
+
+        This combines sequence (text), context, and rating loss terms with user-defined
+        regularization weights.
+
+        Args:
+            log_context_dis (torch.Tensor): Log context distribution
+            word_prob (torch.Tensor): Word probabilities
+            log_word_prob (torch.Tensor): Log word probabilities
+            seq (torch.Tensor): Ground truth token sequences
+            rating_pred (torch.Tensor): Predicted ratings
+            rating (torch.Tensor): Ground truth ratings
+
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the combined loss and individual losses
+        """
+        # Expand the context distribution to match sequence length (minus BOS/EOS)
         context_dis = log_context_dis.unsqueeze(0).repeat(
             (self.tgt_len - 1, 1, 1)
         )  # (batch_size, ntoken) -> (tgt_len - 1, batch_size, ntoken)
@@ -305,6 +323,7 @@ class PETER(BASE):
             seq[:, 1:-1].permute(1, 0).reshape((-1,)),
         )
         loss_r = self.criterion_rating(rating_pred, rating)
+
         loss = (
             self.reg_text * loss_t
             + self.reg_context * loss_c
@@ -329,11 +348,11 @@ class PETER(BASE):
             batch_idx (int): Index of the current batch
 
         Returns:
-            dict: A dictionary containing the loss and other metrics for logging
+            torch.Tensor: The loss value for back-propagation
         """
         user, item, rating, seq, feature, _, pre_pred_rating = batch
 
-        # (test)
+        # Periodically print a sample generation for debugging
         if batch_idx % 1000 == 0:
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq, feature
@@ -341,6 +360,7 @@ class PETER(BASE):
             print(
                 f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} | text_pred: {text_pred[0]}"
             )
+
         if self.use_feature:
             text = torch.cat(
                 [feature, seq[:, :-1]], 1
@@ -376,12 +396,10 @@ class PETER(BASE):
         Args:
             batch (tuple): A tuple containing the batch data (user, item, rating, text)
             batch_idx (int): Index of the current batch
-
-        Returns:
-            dict: A dictionary containing validation metrics
         """
         user, item, rating, seq, feature, _, pre_pred_rating = batch
 
+        # Periodically generate text for logging
         if (
             self.current_epoch % self.check_gen_text_every_n_epoch == 0
             and batch_idx == 0
@@ -475,10 +493,8 @@ class PETER(BASE):
             feature (Optional[torch.Tensor]): Additional features for PETER+ mode
 
         Returns:
-            tuple: A tuple containing:
-                - generated_seq (List[str]): Generated explanation text
-                - rating_pred (torch.Tensor): Final predicted rating
-                - log_context_dis (torch.Tensor): Log context distribution
+            tuple: A tuple containing rating predictions, ground truth tokens,
+                   predicted tokens, ground truth text, and predicted text
         """
         bos = seq[:, 0].unsqueeze(1)
 
@@ -489,26 +505,34 @@ class PETER(BASE):
         start_idx = text.size(1)
 
         ids_predict, context_predict, rating_predict = [], [], []
+
         for idx in range(self.max_seq_len):
-            # produce a word at each step
             if idx == 0:
                 _, log_word_prob, log_context_dis, rating_pred, _ = (
                     self.forward(user, item, pre_pred_rating, text, False)
                 )  # (batch_size, ntoken), (batch_size, ntoken), (batch_size,)
                 assert (
                     rating_pred is not None
-                ), "rating_pred is should be included"
+                ), "rating_pred should be included"
                 if isinstance(rating_pred, tuple):
                     rating_pred = rating_pred[0]
                 rating_predict.extend(rating_pred.tolist())
+
                 context = self.predict(
                     log_context_dis, topk=self.max_seq_len
                 )  # (batch_size, words)
                 context_predict.extend(context.tolist())
             else:
                 _, log_word_prob, _, _, _ = self.forward(
-                    user, item, pre_pred_rating, text, False, False, False
+                    user,
+                    item,
+                    pre_pred_rating,
+                    text,
+                    seq_prediction=False,
+                    context_prediction=False,
+                    rating_prediction=False,
                 )  # (batch_size, ntoken)
+
             word_prob = log_word_prob.exp()  # (batch_size, ntoken)
             word_idx = torch.argmax(word_prob, dim=1)  # (batch_size,)
             text = torch.cat(
@@ -520,19 +544,19 @@ class PETER(BASE):
         # rating
         tokens_test = [
             ids2tokens(
-                ids[1:],
+                ids_seq[1:],
                 self.storage.word_dict.word2idx,
                 self.storage.word_dict.idx2word,
             )
-            for ids in seq.tolist()
+            for ids_seq in seq.tolist()
         ]
         tokens_predict = [
             ids2tokens(
-                ids,
+                ids_seq,
                 self.storage.word_dict.word2idx,
                 self.storage.word_dict.idx2word,
             )
-            for ids in ids_predict
+            for ids_seq in ids_predict
         ]
         text_test = [" ".join(tokens) for tokens in tokens_test]
         text_predict = [
@@ -579,8 +603,7 @@ class PETER(BASE):
             torch.Tensor: Log distribution over contexts
         """
         context_prob = self.hidden2token(hidden[1])  # (batch_size, ntoken)
-        log_context_dis = F.log_softmax(context_prob, dim=-1)
-        return log_context_dis
+        return F.log_softmax(context_prob, dim=-1)
 
     def predict_rating(self, hidden: torch.Tensor) -> torch.Tensor:
         """Predict rating from hidden states.
@@ -591,8 +614,7 @@ class PETER(BASE):
         Returns:
             torch.Tensor: Predicted rating values
         """
-        rating = self.base_recommender(hidden[0])  # (batch_size,)
-        return rating
+        return self.base_recommender(hidden[0])  # (batch_size,)
 
     def predict_sequence(
         self, hidden: torch.Tensor
@@ -603,7 +625,7 @@ class PETER(BASE):
             hidden (torch.Tensor): Hidden state tensor
 
         Returns:
-            torch.Tensor: Probability distribution over vocabulary
+            tuple: (word_prob, log_word_prob) for all tokens
         """
         word_prob = self.hidden2token(
             hidden[self.src_len :]
@@ -614,6 +636,14 @@ class PETER(BASE):
     def generate_token(
         self, hidden: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Generate a single token from the final hidden state.
+
+        Args:
+            hidden (torch.Tensor): Hidden state tensor
+
+        Returns:
+            tuple: (word_prob, log_word_prob) for the final token
+        """
         word_prob = self.hidden2token(hidden[-1])  # (batch_size, ntoken)
         log_word_prob = F.log_softmax(word_prob, dim=-1)
         return word_prob, log_word_prob
@@ -622,12 +652,12 @@ class PETER(BASE):
         """Configure optimizers and learning rate schedulers.
 
         Returns:
-            tuple: A tuple containing:
-                - optimizer: The configured optimizer
-                - lr_scheduler: The configured learning rate scheduler
+            dict: A dictionary containing optimizer, scheduler, and monitor metric
         """
         optimizer = torch.optim.SGD(
-            self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
+            self.parameters(),
+            lr=self.opt_lr,
+            weight_decay=self.opt_wd,
         )
         # NOTE: paper statement
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -636,10 +666,9 @@ class PETER(BASE):
             factor=self.opt_factor,
             patience=self.opt_step_size,
         )
-        # # NOTE: github
-        # scheduler = torch.optim.lr_scheduler.StepLR(
-        #     optimizer, self.opt_step_size, gamma=self.opt_factor
-        # )
+        # Alternative approach (commented out):
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, self.opt_step_size, gamma=self.opt_factor)
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": scheduler,

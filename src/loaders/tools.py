@@ -17,8 +17,10 @@ def get_cos_sim(query: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Cosine similarity scores
     """
+    # If query and key don't match in shape, broadcast query for batched comparison
     if query.size() != key.size():
         query = query.unsqueeze(0)
+
     dot_product = torch.matmul(key, query.T).squeeze(1)
     norm_k = torch.norm(key, dim=1)
     norm_q = torch.norm(query, dim=1)
@@ -43,12 +45,11 @@ def sentence_format(
     length = len(sentence)
     if length >= max_len:
         return [bos] + sentence[:max_len] + [eos]
-    else:
-        return [bos] + sentence + [eos] + [pad] * (max_len - length)
+    return [bos] + sentence + [eos] + [pad] * (max_len - length)
 
 
 def get_pos_tags(words: List[str]) -> List[Tuple[str, str]]:
-    """Get part-of-speech tags for a list of words using spaCy.
+    """Get part-of-speech tags for a list of words.
 
     Args:
         words (List[str]): List of words to tag
@@ -64,6 +65,8 @@ def get_pos_tags(words: List[str]) -> List[Tuple[str, str]]:
 def filter_words(words: List[str]) -> List[str]:
     """Filter words by their part-of-speech tags.
 
+    Specifically, it retains nouns, adjectives, and verbs.
+
     Args:
         words (List[str]): List of words to filter
 
@@ -76,5 +79,4 @@ def filter_words(words: List[str]) -> List[str]:
         "adjectives": [word for word, pos in pos_tags if pos == "ADJ"],
         "verbs": [word for word, pos in pos_tags if pos == "VERB"],
     }
-    combined_list = list(chain(*filtered_words.values()))
-    return combined_list
+    return list(chain(*filtered_words.values()))

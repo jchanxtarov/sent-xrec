@@ -36,7 +36,6 @@ class ReviewDataLoader:
         user_profile_embeds (Optional[torch.Tensor]): User profile embeddings
         item_profile_embeds (Optional[torch.Tensor]): Item profile embeddings
         n_features (int): Number of features
-        n_retrieved_profs (int): Number of retrieved profiles
     """
 
     def __init__(
@@ -74,9 +73,7 @@ class ReviewDataLoader:
         self.train, self.valid, self.test = self.load_data(reviews)
         self.user_profile_embeds: Optional[torch.Tensor] = None
         self.item_profile_embeds: Optional[torch.Tensor] = None
-
         self.n_features: int = 0
-        self.n_retrieved_profs: int = 0
 
     def initialize(self, reviews: Dict[Any, Any]) -> None:
         """Initialize the data loader with review data.
@@ -321,7 +318,7 @@ class ReviewDataLoader:
                 self.device
             ), torch.tensor(data["item"]).to(self.device)
 
-            # 1. Get all past features granted from the target user
+            # 1. Get all past features from the target user
             idxs_candidate = torch.where(useridxs_train == user)[0]
             feats = [
                 stores[idx].split()
@@ -330,7 +327,7 @@ class ReviewDataLoader:
             ]
             feats_u = set([item for sub in feats for item in sub])
 
-            # 2. Get all past features granted to the target item
+            # 2. Get all past features from the target item
             idxs_candidate = torch.where(itemidxs_train == item)[0]
             feats = [
                 stores[idx].split()
@@ -339,7 +336,7 @@ class ReviewDataLoader:
             ]
             feats_i = set([item for sub in feats for item in sub])
 
-            # 3. Duplicate features are moved to the front of the list and others to the back.
+            # 3. Merge and randomize
             feats_common = list(feats_u.intersection(feats_i))
             feats_unique = list(feats_u.symmetric_difference(feats_i))
             random.shuffle(feats_common)
@@ -505,11 +502,11 @@ class ReviewDataLoader:
         for i in tqdm(
             range(len(self.user_dict)), desc="Profile Retrieval (User)"
         ):
-            # 1. Pooling past reviews written by target users
+            # 1. Pool past reviews from the target user
             idxs_u = torch.where(useridxs_train == i)[0]
             embed_avg_u = torch.mean(embed_exp_train[idxs_u], dim=0)
 
-            # 2. Getting some similar reviews from all user reviews
+            # 2. Retrieve similar reviews from all user reviews
             scores = get_cos_sim(embed_avg_u, embed_exp_train)
             sorted_idxs = torch.argsort(scores, descending=True)
             texts_profile = [
@@ -522,11 +519,11 @@ class ReviewDataLoader:
         for i in tqdm(
             range(len(self.item_dict)), desc="Profile Retrieval (Item)"
         ):
-            # 1. Pooling past reviews written by target users
+            # 1. Pool past reviews from the target item
             idxs_i = torch.where(itemidxs_train == i)[0]
             embed_avg_i = torch.mean(embed_exp_train[idxs_i], dim=0)
 
-            # 2. Getting some similar reviews from all item reviews
+            # 2. Retrieve similar reviews from all item reviews
             scores = get_cos_sim(embed_avg_i, embed_exp_train)
             sorted_idxs = torch.argsort(scores, descending=True)
             texts_profile = [

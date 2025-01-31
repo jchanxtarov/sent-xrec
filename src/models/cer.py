@@ -42,24 +42,27 @@ class CER(PETER):
             hidden (torch.Tensor): Hidden state tensor
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: A tuple containing:
+            Tuple[torch.Tensor, torch.Tensor]:
                 - rating (torch.Tensor): Base rating prediction
                 - explanation_rating (torch.Tensor): Explanation-based rating prediction
         """
         rating = self.base_recommender(hidden[0])  # (batch_size,)
-        hidden_explanation, _ = hidden[self.src_len :].max(0)
+
+        # Use the hidden states after src_len; take maximum along seq dimension
+        hidden_explanation, _ = hidden[self.src_len :].max(dim=0)
         explanation_rating = self.additional_recommender(hidden_explanation)
+
         return rating, explanation_rating
 
     def lossfun(
         self,
         log_context_dis: torch.Tensor,
-        word_prob: torch.Tensor,
+        word_prob: torch.Tensor,  # Not used
         log_word_prob: torch.Tensor,
         seq: torch.Tensor,
         rating_pred: Tuple[torch.Tensor, torch.Tensor],
         rating: torch.Tensor,
-        asp: Optional[torch.Tensor] = None,
+        asp: Optional[torch.Tensor] = None,  # Not used
     ) -> Dict[str, torch.Tensor]:
         """Calculate the loss for the model.
 
@@ -73,22 +76,33 @@ class CER(PETER):
             asp (Optional[torch.Tensor], optional): Aspect tensor. Defaults to None
 
         Returns:
-            Dict[str, torch.Tensor]: Dictionary containing different loss components
+            Dict[str, torch.Tensor]: Dictionary containing different loss components:
+                - "loss": Total combined loss
+                - "loss_t": Text generation loss
+                - "loss_c": Context prediction loss
+                - "loss_r": Base rating prediction loss
+                - "loss_r_exp": Explanation-based rating prediction loss
         """
         context_dis = log_context_dis.unsqueeze(0).repeat(
             (self.tgt_len - 1, 1, 1)
         )  # (batch_size, ntoken) -> (tgt_len - 1, batch_size, ntoken)
 
+        # Text generation loss
         loss_t = self.criterion_text(
             log_word_prob.view(-1, self.n_tokens),
             seq[:, 1:].permute(1, 0).reshape((-1,)),
         )
+        # Context prediction loss
         loss_c = self.criterion_text(
             context_dis.view(-1, self.n_tokens),
             seq[:, 1:-1].permute(1, 0).reshape((-1,)),
         )
+
+        # Rating prediction losses
         loss_r = self.criterion_rating(rating, rating_pred[0])
         loss_r_exp = self.criterion_rating(rating_pred[0], rating_pred[1])
+
+        # Weighted total loss
         loss = (
             self.reg_text * loss_t
             + self.reg_context * loss_c
@@ -99,7 +113,7 @@ class CER(PETER):
         return {
             "loss": loss,
             "loss_t": loss_t,
-            "loss_c": loss_t,
+            "loss_c": loss_c,
             "loss_r": loss_r,
             "loss_r_exp": loss_r_exp,
         }

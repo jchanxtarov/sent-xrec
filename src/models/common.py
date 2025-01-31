@@ -122,7 +122,7 @@ class BASE(pl.LightningModule):
             kws_pos (Optional[List[str]], optional): Positive keywords. Defaults to None
             kws_neg (Optional[List[str]], optional): Negative keywords. Defaults to None
         """
-        colmuns = ["epoch", "rating", "text", "text_pred"]
+        columns = ["epoch", "rating", "text", "text_pred"]
         samples = [
             [
                 self.current_epoch,
@@ -134,7 +134,7 @@ class BASE(pl.LightningModule):
         ]
 
         if rating_pred is not None:
-            colmuns.append("rating_pred")
+            columns.append("rating_pred")
             samples = [
                 sample + [add]
                 for sample, add in zip(
@@ -143,7 +143,7 @@ class BASE(pl.LightningModule):
             ]
 
         if pos_negs is not None:
-            colmuns.append("pos_negs")
+            columns.append("pos_negs")
             samples = [
                 sample + [add]
                 for sample, add in zip(
@@ -152,7 +152,7 @@ class BASE(pl.LightningModule):
             ]
 
         if kws_pos is not None:
-            colmuns.append("kws_pos")
+            columns.append("kws_pos")
             samples = [
                 sample + [add]
                 for sample, add in zip(
@@ -161,7 +161,7 @@ class BASE(pl.LightningModule):
             ]
 
         if kws_neg is not None:
-            colmuns.append("kws_neg")
+            columns.append("kws_neg")
             samples = [
                 sample + [add]
                 for sample, add in zip(
@@ -173,7 +173,7 @@ class BASE(pl.LightningModule):
             self.log_table_samples.extend(samples)
             self.logger.log_table(
                 key="validation_sample",
-                columns=colmuns,
+                columns=columns,
                 data=self.log_table_samples,
             )
 
@@ -205,6 +205,7 @@ class BASE(pl.LightningModule):
         """
         scores = {}
 
+        # Rating metrics
         if rating is not None and rating_predict is not None:
             pair_rating = [(r, p) for (r, p) in zip(rating, rating_predict)]
             scores["rmse"] = get_root_mean_square_error(
@@ -216,11 +217,13 @@ class BASE(pl.LightningModule):
             self.outputs_test_step["rating"] += rating
             self.outputs_test_step["rating_predict"] += rating_predict
 
+        # Text metrics
         self.list_tokens_predict.extend(tokens_predict)
         scores.update(get_bleu_score(tokens_test, tokens_predict))
         scores.update(get_rouge_score(text_test, text_predict))
         scores.update(get_bert_score(text_test, text_predict))
 
+        # Explainability metrics (positive features)
         feature_pos_test, scores = self.get_explainability_metrics(
             scores,
             feature,
@@ -229,6 +232,7 @@ class BASE(pl.LightningModule):
             text_predict,
             "pos",
         )
+        # Explainability metrics (negative features)
         feature_neg_test, scores = self.get_explainability_metrics(
             scores,
             feature_neg,
@@ -237,6 +241,8 @@ class BASE(pl.LightningModule):
             text_predict,
             "neg",
         )
+
+        # Accumulate results for final logging
         batch_size = len(tokens_test)
         for k, v in scores.items():
             self.outputs_test_step[k].append(v * batch_size)
@@ -256,7 +262,7 @@ class BASE(pl.LightningModule):
         feature_set: Set[str],
         tokens_predict: List[List[str]],
         text_predict: List[str],
-        type: str = "",
+        aspect_type: str = "",
     ) -> Tuple[List[Optional[str]], Dict[str, float]]:
         """Calculate explainability metrics.
 
@@ -266,18 +272,20 @@ class BASE(pl.LightningModule):
             feature_set (Set[str]): Set of features
             tokens_predict (List[List[str]]): Predicted tokens
             text_predict (List[str]): Predicted texts
-            type (str, optional): Type of features. Defaults to ""
+            aspect_type (str, optional): Type of features. Defaults to ""
 
         Returns:
-            Tuple containing:
-                - List[Optional[str]]: Feature test results
-                - Dict[str, float]: Updated scores dictionary
+            Tuple[List[Optional[str]], Dict[str, float]]:
+                - Feature test results as a list of feature tokens or None
+                - Updated scores dictionary
         """
-        type = f"_{type}" if type != "" else ""
+        aspect_type = f"_{aspect_type}" if aspect_type else ""
 
         feature_batch = feature_detection(tokens_predict, feature_set)
         feature_test = self.feature_id2token(feature)
-        scores[f"fmr{type}"] = get_feature_matching_ratio(
+
+        # Feature Matching Ratio
+        scores[f"fmr{aspect_type}"] = get_feature_matching_ratio(
             feature_batch, feature_test
         )
 
@@ -288,20 +296,42 @@ class BASE(pl.LightningModule):
         scores: Dict[Any, Any],
         feature_set: Set[str],
         tokens_predict: List[List[str]],
-        type: str = "",
+        aspect_type: str = "",
     ) -> Dict[Any, Any]:
-        type = f"_{type}" if type != "" else ""
+        """Accumulate final explainability metrics on test end.
+
+        Args:
+            scores (Dict[Any, Any]): Current scores dictionary
+            feature_set (Set[str]): Set of features (pos or neg)
+            tokens_predict (List[List[str]]): Predicted tokens
+            aspect_type (str, optional): Type of features. Defaults to ""
+
+        Returns:
+            Dict[Any, Any]: Updated scores dictionary
+        """
+        aspect_type = f"_{aspect_type}" if aspect_type else ""
         feature_batch = feature_detection(tokens_predict, feature_set)
-        scores[f"div{type}"] = get_feature_diversity(feature_batch)
-        scores[f"fcr{type}"] = get_feature_coverage_ratio(
+
+        # Diversity and coverage
+        scores[f"div{aspect_type}"] = get_feature_diversity(feature_batch)
+        scores[f"fcr{aspect_type}"] = get_feature_coverage_ratio(
             feature_batch, feature_set
         )
+        # Unique Sentence Ratio
         scores["usr"], scores["usn"] = get_unique_sentence_ratio(
             tokens_predict
         )
         return scores
 
     def feature_id2token(self, feature: torch.Tensor) -> List[Optional[str]]:
+        """Convert feature IDs to tokens.
+
+        Args:
+            feature (torch.Tensor): Feature tensor of IDs
+
+        Returns:
+            List[Optional[str]]: Feature tokens or None for padding
+        """
         feature_test = [
             self.storage.word_dict.idx2word[i] if i != -100 else None
             for i in feature.view(-1).tolist()
@@ -309,6 +339,12 @@ class BASE(pl.LightningModule):
         return feature_test
 
     def on_test_epoch_end(self) -> Any:
+        """Compute final test metrics and optionally save results.
+
+        Returns:
+            Any: Scores dictionary
+        """
+        # Remove unused columns that never get populated
         non_score_cols = [
             "rating",
             "rating_predict",
@@ -329,6 +365,8 @@ class BASE(pl.LightningModule):
             for k, v in self.outputs_test_step.items()
             if k not in non_score_cols and k != "batch_size"
         }
+
+        # Finalize explainability metrics
         scores = self.get_explainability_metrics_on_test_end(
             scores,
             self.storage.feature_pos_set,
@@ -341,15 +379,18 @@ class BASE(pl.LightningModule):
             self.list_tokens_predict,
             "neg",
         )
+
+        # Log final scores
         for k, v in scores.items():
             self.log(k, v)
 
+        # Save partial results if requested
         results = {
             k: v
             for k, v in self.outputs_test_step.items()
             if k in non_score_cols
         }
-        if self.save_root != "":
+        if self.save_root:
             pd.DataFrame(results).to_csv(
                 f"{self.save_root}/{self.save_root.rsplit('/', 1)[-1]}_result.csv",
                 index=False,
@@ -389,7 +430,7 @@ def ids2tokens_tokenizer(
         tokenizer (PreTrainedTokenizer): Pre-trained tokenizer
 
     Returns:
-        List[str]: List of tokens
+        List[str]: List of decoded tokens
     """
     text = __postprocessing(tokenizer.decode(idxs))
     if text == "":  # for null feature
@@ -432,8 +473,7 @@ def __postprocessing(string: str) -> str:
     ]
     for pattern, replacement in patterns:
         string = re.sub(pattern, replacement, string)
-    string = string.strip()
-    return string
+    return string.strip()
 
 
 def get_square_subsequent_mask(total_len: int) -> torch.Tensor:
@@ -464,7 +504,8 @@ def get_peter_mask(src_len: int, tgt_len: int) -> torch.Tensor:
     """
     total_len = src_len + tgt_len
     mask = get_square_subsequent_mask(total_len)
-    mask[0, 1] = False  # allow to attend for user and item
+    # allow user to attend item
+    mask[0, 1] = False
     return mask
 
 
@@ -552,8 +593,8 @@ class TransformerEncoderLayer(nn.Module):
 
         Args:
             src (torch.Tensor): Source sequence
-            src_mask (Optional[torch.Tensor], optional): Source attention mask. Defaults to None
-            src_key_padding_mask (Optional[torch.Tensor], optional): Source key padding mask. Defaults to None
+            src_mask (Optional[torch.Tensor], optional): Source attention mask
+            src_key_padding_mask (Optional[torch.Tensor], optional): Source key padding mask
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Output tensor and attention weights
@@ -595,9 +636,9 @@ class TransformerEncoder(nn.Module):
         """Initialize the transformer encoder.
 
         Args:
-            encoder_layer (nn.Module): Transformer encoder layer module
+            encoder_layer (nn.Module): Transformer encoder layer
             n_layers (int): Number of layers
-            norm (Optional[Any], optional): Normalization layer. Defaults to None
+            norm (Optional[Any], optional): Normalization layer
         """
         super().__init__()
         self.layers = get_clones(encoder_layer, n_layers)
@@ -614,8 +655,8 @@ class TransformerEncoder(nn.Module):
 
         Args:
             src (torch.Tensor): Source sequence
-            mask (Optional[torch.Tensor], optional): Attention mask. Defaults to None
-            src_key_padding_mask (Optional[torch.Tensor], optional): Source key padding mask. Defaults to None
+            mask (Optional[torch.Tensor], optional): Attention mask
+            src_key_padding_mask (Optional[torch.Tensor], optional): Key padding mask
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Output tensor and attention weights
@@ -639,6 +680,7 @@ class TransformerEncoder(nn.Module):
 
 
 def get_clones(module: nn.Module, n_layers: int):
+    """Clone a module `n_layers` times."""
     return nn.ModuleList([copy.deepcopy(module) for _ in range(n_layers)])
 
 
@@ -665,14 +707,7 @@ def get_activation_fn(activation_type: str) -> Callable:
 
 
 class PositionalEncoding(nn.Module):
-    """Positional encoding for transformer models.
-
-    This class implements the sinusoidal positional encoding used in transformer models.
-
-    Attributes:
-        dropout (nn.Dropout): Dropout layer
-        p_emb (torch.Tensor): Pre-computed positional embeddings
-    """
+    """Positional encoding for transformer models."""
 
     def __init__(
         self, d_embed: int, dropout_ratio: float = 0.1, max_len: int = 5000
@@ -748,7 +783,6 @@ class MLPRating(nn.Module):
             d_hidden (int, optional): Hidden layer dimension. Defaults to 400
         """
         super().__init__()
-
         if n_hidden_layers > 0:
             self.first_layer = nn.Linear(d_embed * width, d_hidden)
             layer = nn.Linear(d_hidden, d_hidden)
@@ -758,8 +792,8 @@ class MLPRating(nn.Module):
             self.first_layer = nn.Linear(d_embed * width, d_embed)
             self.hidden_layers = None
             self.last_layer = nn.Linear(d_embed, 1)
-        self.sigmoid = nn.Sigmoid()
 
+        self.sigmoid = nn.Sigmoid()
         self.__init_weights()
 
     def __init_weights(self):
@@ -773,21 +807,24 @@ class MLPRating(nn.Module):
         self.last_layer.weight.data.uniform_(-init_range, init_range)
         self.last_layer.bias.data.zero_()
 
-    def forward(self, x: torch.Tensor):  # (batch_size, d_embed)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the MLP.
+
+        Args:
+            x (torch.Tensor): Input features
+
+        Returns:
+            torch.Tensor: Predicted rating
+        """
         x = self.sigmoid(self.first_layer(x))  # (batch_size, d_embed)
         if self.hidden_layers is not None:
             for layer in self.hidden_layers:
                 x = self.sigmoid(layer(x))  # (batch_size, d_hidden)
-        rating = torch.squeeze(self.last_layer(x))  # (batch_size,)
-        return rating
+        return torch.squeeze(self.last_layer(x))  # (batch_size,)
 
 
 class MFRating(nn.Module):
-    """Matrix Factorization based rating predictor.
-
-    This class implements a simple matrix factorization model for rating prediction
-    by computing the dot product between user and item embeddings.
-    """
+    """Matrix Factorization based rating predictor."""
 
     def __init__(self):
         """Initialize the MF rating predictor."""
@@ -795,7 +832,7 @@ class MFRating(nn.Module):
 
     def forward(
         self, u_src: torch.Tensor, i_src: torch.Tensor
-    ) -> torch.Tensor:  # (batch_size, emsize)
+    ) -> torch.Tensor:
         """Forward pass of the MF rating predictor.
 
         Args:
@@ -805,7 +842,7 @@ class MFRating(nn.Module):
         Returns:
             torch.Tensor: Predicted ratings
         """
-        # TODO: standalization?, 5 -> max_rating
+        # TODO: standardization?, 5 -> max_rating
         rating = 5 * torch.clamp(
             torch.sum(u_src * i_src, 1), min=0
         )  # (batch_size,)
@@ -835,7 +872,6 @@ class TransformerRating(nn.Module):
             n_layers (int, optional): Number of transformer layers. Defaults to 2
         """
         super().__init__()
-
         encoder_layer = TransformerEncoderLayer(
             d_embed=d_embed,
             n_head=n_head,
@@ -932,12 +968,13 @@ class Recommender(BASE):
             d_embed is not None or pretrained_embed_name is not None
         ), "cannot set dim embed."
 
+        # If no embedding dimension is provided, infer from GPT2
         if d_embed is None:
             lm = GPT2LMHeadModel.from_pretrained(pretrained_embed_name)
             d_embed = lm.transformer.wte.weight.size(1)
+
         self.user_embeddings = nn.Embedding(n_users, d_embed)
         self.item_embeddings = nn.Embedding(n_items, d_embed)
-
         self.__initialize_tokens()
 
         self.rec_type = rec_type
@@ -976,21 +1013,18 @@ class Recommender(BASE):
 
         Returns:
             torch.Tensor: Predicted ratings
-
-        Raises:
-            AssertionError: If rating prediction fails
         """
         u_src = self.user_embeddings(user)
         i_src = self.item_embeddings(item)
-        rating = None
+
         if self.rec_type == "mf":
             rating = self.recommender(u_src, i_src)
         elif self.rec_type == "mlp":
             ui_src = torch.cat([u_src, i_src], 1)
             rating = self.recommender(ui_src)
-        elif self.rec_type == "transformer":
+        else:  # self.rec_type == "transformer"
             rating = self.recommender(u_src, i_src)
-        assert rating is not None, "rating should be included"
+
         return rating
 
     def lossfun(
@@ -1068,6 +1102,7 @@ class Recommender(BASE):
             (r, p.item()) for (r, p) in zip(rating.tolist(), rating_pred)
         ]
 
+        # Store metrics
         self.outputs_test_step["pretrain/rmse"].append(
             get_root_mean_square_error(
                 pair_rating, self.storage.max_rating, self.storage.min_rating
@@ -1086,7 +1121,6 @@ class Recommender(BASE):
     def on_test_epoch_end(self) -> None:
         """Process and log metrics at the end of the test epoch."""
         non_score_cols = ["rating", "rating_predict"]
-
         scores = {
             k: mean(v)
             for k, v in self.outputs_test_step.items()
@@ -1100,7 +1134,7 @@ class Recommender(BASE):
             for k, v in self.outputs_test_step.items()
             if k in non_score_cols
         }
-        if self.save_root != "":
+        if self.save_root:
             pd.DataFrame(results).to_csv(
                 f"{self.save_root}/result_pretrain.csv", index=False
             )

@@ -9,7 +9,6 @@ import pandas as pd
 def data_loader(
     logger: logging.Logger,
     dataset: str,
-    max_seq_len: int,
     max_data_size: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Load and preprocess review dataset.
@@ -20,7 +19,6 @@ def data_loader(
     Args:
         logger (logging.Logger): Logger instance for recording information
         dataset (str): Name of the dataset to load
-        max_seq_len (int): Maximum sequence length for reviews
         max_data_size (Optional[int], optional): Maximum number of reviews to load. Defaults to None
 
     Returns:
@@ -33,9 +31,9 @@ def data_loader(
     base_path = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
-    FILE_PATH = os.path.join(base_path, f"datasets/{dataset}_exps.pkl.gz")
+    file_path = os.path.join(base_path, f"datasets/{dataset}_exps.pkl.gz")
 
-    df = pd.read_pickle(FILE_PATH, compression="gzip")
+    df = pd.read_pickle(file_path, compression="gzip")
 
     if max_data_size is not None:
         df = df[:max_data_size]

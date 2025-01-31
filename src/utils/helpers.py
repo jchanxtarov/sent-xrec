@@ -17,7 +17,7 @@ import datetime
 import os
 import warnings
 from logging import Logger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from lightning import LightningDataModule, LightningModule, Trainer
@@ -31,7 +31,7 @@ from lightning.pytorch.callbacks.progress.rich_progress import (
 )
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, OmegaConf
-from transformers import GPT2Tokenizer, GPT2TokenizerFast, PreTrainedTokenizer
+from transformers import GPT2TokenizerFast, PreTrainedTokenizer
 
 from loaders.common import XRecDataModule
 from loaders.helpers import ReviewDataLoader
@@ -68,8 +68,8 @@ def initialize() -> Tuple[DictConfig, Logger, str]:
     warnings.filterwarnings("ignore")
 
     config = load_config()
-
     set_random_seed(config.seed)
+
     log_name, save_root = set_path(
         model=config.model.name,
         dataset=config.dataset,
@@ -100,7 +100,7 @@ def get_loader(
     Args:
         config: Configuration dictionary containing model and training parameters
         logger: Logger instance for tracking setup progress
-        for_recommender: Whether loader is for recommender pretraining
+        for_recommender: Whether loader is for recommender pre-training
 
     Returns:
         Tuple containing:
@@ -115,7 +115,7 @@ def get_loader(
         reviews = data_loader(
             logger,
             config.dataset,
-            config.max_seq_len,
+            # config.max_seq_len, # Not used
             config.dev.max_data_size,
         )
     else:
@@ -123,6 +123,7 @@ def get_loader(
 
     bos_token, eos_token, pad_token = "<bos>", "<eos>", "<pad>"
     tokenizer = None
+
     if config.model.name in ["pepler", "pepler_d"]:
         tokenizer = GPT2TokenizerFast.from_pretrained(
             config.model.pretrained_model_name,
@@ -135,7 +136,7 @@ def get_loader(
         reviews=reviews,
         batch_size=(
             config.trainer.batch_size
-            if for_recommender is False
+            if not for_recommender
             else config.trainer_pretrain.batch_size
         ),
         max_seq_len=config.max_seq_len,
@@ -147,6 +148,7 @@ def get_loader(
         is_recommender=for_recommender,
     )
 
+    # Additional setup for specific models
     if config.model.name == "erra":
         logger.info("erra: add_aspects")
         loader.storage.add_aspects(config.model.retrieval_encoder_name)
@@ -182,7 +184,7 @@ def get_model(
     stats: Dict[str, int],
     storage: ReviewDataLoader,
     save_root: str,
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: Optional[PreTrainedTokenizer],
 ) -> Tuple[Optional[LightningModule], LightningModule]:
     """Create model instances based on configuration.
 
@@ -201,7 +203,8 @@ def get_model(
     Raises:
         NotImplementedError: If model type is not supported
     """
-    if config.save_log is not True:
+    # If logs aren't saved, set save_root to empty for safe references
+    if not config.save_log:
         save_root = ""
 
     recommender = None
@@ -228,6 +231,7 @@ def get_model(
             save_root=save_root,
         )
 
+    # Main model initialization
     if config.model.name == "peter":
         src_len = 2
         if config.model.type_rating_embedding is not None:
@@ -421,7 +425,7 @@ def get_trainer(
         ),
         patience=(
             config.trainer.patience
-            if for_recommender is False
+            if not for_recommender
             else config.trainer_pretrain.patience
         ),
         mode="min",
@@ -441,9 +445,11 @@ def get_trainer(
         )
     )
     callbacks = [progress_bar, early_stop_callback]
+
     if config.save_model:
         callbacks.append(checkpoint_callback)
 
+    # Use W&B logger if logging is enabled
     logger = False
     if config.save_log:
         logger = WandbLogger(
@@ -456,6 +462,7 @@ def get_trainer(
         logger.experiment.config.update(config_dict)
         logger.experiment.config.update(stats)
 
+    # Trainer config adjustments for pre-training vs. main training
     if for_recommender:
         trainer = Trainer(
             max_epochs=config.trainer_pretrain.epochs,
@@ -521,17 +528,24 @@ def pretrain_recommender(
             - dataloader: Updated data loader configured for main training
     """
     if config.model.type_rating_embedding is not None:
-        train_predictions = None
-        valid_predictions = None
-        test_predictions = None
+        train_predictions, valid_predictions, test_predictions = (
+            None,
+            None,
+            None,
+        )
+
         if config.ablation.leak_rating:
             logger.info("skip 1st stage prediction for leaking.")
         else:
+            # Only fit if no checkpoint is provided
             if config.pretrain.checkpoint_dir == "":
                 trainer.fit(recommender, datamodule=dataloader)
                 logger.info("finish 1st stage pre-training.")
+
+            # Evaluate and generate predictions
             _ = trainer.test(recommender, datamodule=dataloader)
             predict_dataloaders = dataloader.predict_dataloaders()
+
             _, train_predictions = get_predictions(
                 recommender, predict_dataloaders["train"]
             )
@@ -554,6 +568,7 @@ def pretrain_recommender(
             logger.info("finish registering rating_predict.")
             logger.info(f"noise | MAE: {mae} | RMSE: {rmse}")
 
+    # Update data loader to main training settings
     dataloader.batch_size = config.trainer.batch_size
     logger.info("finish updating batch size.")
 
@@ -576,7 +591,7 @@ def get_predictions(
     Returns:
         Tuple containing:
             - targets: List of actual target ratings
-            - predictions: List of model predicted ratings
+            - predictions: List of model-predicted ratings
     """
     recommender.eval()
     recommender.freeze()
@@ -588,6 +603,8 @@ def get_predictions(
             user, item, rating = batch
             pred_rating = recommender(user, item)
             targets.append(rating)
+
+            # Ensure consistent shape
             if pred_rating.dim() == 0:
                 pred_rating = pred_rating.unsqueeze(0)
             predictions.append(pred_rating)

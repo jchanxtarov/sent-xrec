@@ -1,4 +1,3 @@
-from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -53,7 +52,8 @@ class PEPLER(BASE):
         check_n_samples: int = 3,
         save_root: str = "",
     ):
-        """Initialize the PEPLER model.
+        """
+        Initialize the PEPLER model.
 
         Args:
             n_users (int): Number of users in the dataset
@@ -134,7 +134,7 @@ class PEPLER(BASE):
         self.criterion_rating = nn.MSELoss()
         self.criterion_text = nn.CrossEntropyLoss()
 
-        self.valid_losses = []
+        self.valid_losses: List[torch.Tensor] = []
         self.use_seq_optimizers = use_seq_optimizers
         self.patience = patience
         self.phase = 1
@@ -160,7 +160,8 @@ class PEPLER(BASE):
         rating_prediction: bool = True,
         ignore_index: int = -100,
     ) -> Tuple[Any, Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """Forward pass of the PEPLER model.
+        """
+        Forward pass of the PEPLER model.
 
         Args:
             user (torch.Tensor): User indices tensor
@@ -173,7 +174,7 @@ class PEPLER(BASE):
 
         Returns:
             tuple: A tuple containing:
-                - model_output: Output from the language model
+                - model_output (Any): Output from the language model
                 - labels (Optional[torch.Tensor]): Labels for masked tokens
                 - rating (Optional[torch.Tensor]): Predicted ratings
         """
@@ -226,9 +227,10 @@ class PEPLER(BASE):
             ).to(device)
             pad_input = torch.cat([pad_left, mask], 1)
             labels = torch.where(
-                mask == 1, text, torch.tensor(ignore_index).to(device)
+                mask == 1,
+                text,
+                torch.tensor(ignore_index).to(device),
             )
-
             return (
                 self.lm(attention_mask=pad_input, inputs_embeds=src),
                 labels,
@@ -242,10 +244,11 @@ class PEPLER(BASE):
         rating_pred: torch.Tensor,
         rating_gt: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        """Calculate the loss for the model.
+        """
+        Calculate the loss for the model.
 
         Args:
-            output: Output from the language model
+            output (Any): Output from the language model
             labels (torch.Tensor): Ground truth labels
             rating_pred (torch.Tensor): Predicted ratings
             rating_gt (torch.Tensor): Ground truth ratings
@@ -256,11 +259,13 @@ class PEPLER(BASE):
         # loss_t = output.loss
         shift_logits = output.logits[..., self.src_len : -1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
+
         loss_t = self.criterion_text(
             shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
         )
         loss_r = self.criterion_rating(rating_pred, rating_gt)
         loss = self.reg_text * loss_t + self.reg_rating * loss_r
+
         return {
             "loss": loss,
             "loss_t": loss_t,
@@ -268,9 +273,12 @@ class PEPLER(BASE):
         }
 
     def training_step(
-        self, batch: Tuple[torch.Tensor, ...], batch_idx: int
+        self,
+        batch: Tuple[torch.Tensor, ...],
+        batch_idx: int,
     ) -> torch.Tensor:
-        """Perform a single training step.
+        """
+        Perform a single training step.
 
         Args:
             batch (Tuple[torch.Tensor, ...]): Batch of training data
@@ -283,13 +291,14 @@ class PEPLER(BASE):
         print("[test] rating: ", rating)
         print("[test] pre_pred_rating: ", pre_pred_rating)
 
-        # (test)
+        # Diagnostic text generation
         if batch_idx % 500 == 0:
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq
             )
             print(
-                f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} | text_pred: {text_pred[0]}"
+                f"[test] (train) batch_idx: {batch_idx} | text: {text[0]} "
+                f"| text_pred: {text_pred[0]}"
             )
 
         output, labels, rating_pred = self.forward(
@@ -303,9 +312,12 @@ class PEPLER(BASE):
         return output["loss"].to(torch.float32)
 
     def validation_step(
-        self, batch: Tuple[torch.Tensor, ...], batch_idx: int
+        self,
+        batch: Tuple[torch.Tensor, ...],
+        batch_idx: int,
     ) -> None:
-        """Perform a single validation step.
+        """
+        Perform a single validation step.
 
         Args:
             batch (Tuple[torch.Tensor, ...]): Batch of validation data
@@ -333,7 +345,8 @@ class PEPLER(BASE):
         self.valid_losses.append(output["loss"])
 
     def on_validation_epoch_end(self) -> None:
-        """Handle the end of validation epoch.
+        """
+        Handle the end of validation epoch.
 
         Updates the model phase and handles early stopping based on validation loss.
         """
@@ -355,15 +368,17 @@ class PEPLER(BASE):
                     self.num_epochs_no_improvement = 0
                     print("[test] required_grad updated!")
                 elif self.phase == 2:
-                    # ATTENTION: stopped by EarlyStoppingCallback.
+                    # Stopped by an EarlyStoppingCallback if implemented externally
                     if self.num_epochs_no_improvement > self.patience:
-                        # TODO: include logger
                         print(
-                            "[WARNING] Training should be stopped as no improvement seen during final phase."
+                            "[WARNING] Training should be stopped as no improvement "
+                            "seen during final phase."
                         )
 
             print(
-                f"[test] current_loss: {current_loss} | self.best_loss: {self.best_loss} | self.num_epochs_no_improvement: {self.num_epochs_no_improvement} | self.patience: {self.patience}"
+                f"[test] current_loss: {current_loss} | self.best_loss: {self.best_loss} "
+                f"| self.num_epochs_no_improvement: {self.num_epochs_no_improvement} "
+                f"| self.patience: {self.patience}"
             )
 
     def test_step(
@@ -372,7 +387,8 @@ class PEPLER(BASE):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> Dict[str, Union[float, List[str]]]:
-        """Perform a single test step.
+        """
+        Perform a single test step.
 
         Args:
             batch (Tuple[torch.Tensor, ...]): Batch of test data
@@ -387,6 +403,7 @@ class PEPLER(BASE):
         )
         print("[test] rating: ", rating)
         print("[test] pre_pred_rating: ", pre_pred_rating)
+
         (
             rating_predict,
             tokens_test,
@@ -394,6 +411,7 @@ class PEPLER(BASE):
             text_test,
             text_predict,
         ) = self.generate(user, item, pre_pred_rating, seq)
+
         outputs = self.get_metrics(
             rating.tolist(),
             rating_predict,
@@ -413,9 +431,14 @@ class PEPLER(BASE):
         pre_pred_rating: torch.Tensor,
         seq: torch.Tensor,
     ) -> Tuple[
-        List[float], List[List[str]], List[List[str]], List[str], List[str]
+        List[float],
+        List[List[str]],
+        List[List[str]],
+        List[str],
+        List[str],
     ]:
-        """Generate explanatory text for recommendations.
+        """
+        Generate explanatory text for recommendations.
 
         Args:
             user (torch.Tensor): User indices tensor
@@ -447,19 +470,22 @@ class PEPLER(BASE):
                 outputs, _, _ = self.forward(
                     user, item, pre_pred_rating, text, None, False
                 )
+
             last_token = outputs.logits[:, -1, :]
             word_prob = torch.softmax(last_token, dim=-1)
             token = torch.argmax(word_prob, dim=1, keepdim=True)
             text = torch.cat([text, token], 1)
+
         ids = text[:, 1:].tolist()
         ids_predict.extend(ids)
 
         tokens_test = [
-            ids2tokens_tokenizer(ids[1:], self.tokenizer)
-            for ids in seq.tolist()
+            ids2tokens_tokenizer(ids_seq[1:], self.tokenizer)
+            for ids_seq in seq.tolist()
         ]
         tokens_predict = [
-            ids2tokens_tokenizer(ids, self.tokenizer) for ids in ids_predict
+            ids2tokens_tokenizer(ids_seq, self.tokenizer)
+            for ids_seq in ids_predict
         ]
         text_test = [" ".join(tokens) for tokens in tokens_test]
         text_predict = [
@@ -476,18 +502,22 @@ class PEPLER(BASE):
         )
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        """Configure optimizers for training.
+        """
+        Configure optimizers for training.
 
         Returns:
             Dict[str, Any]: Dictionary containing optimizer configuration
         """
         if self.use_seq_optimizers:
+            # Freeze GPT-2 parameters initially
             for name, param in self.named_parameters():
                 if "transformer" in name:
                     param.requires_grad = False
 
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=self.opt_lr, weight_decay=self.opt_wd
+            self.parameters(),
+            lr=self.opt_lr,
+            weight_decay=self.opt_wd,
         )
         return {
             "optimizer": optimizer,

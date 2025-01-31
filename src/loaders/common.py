@@ -83,9 +83,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
             self.valid_dataset = XRecTokenizerDataset(
@@ -94,9 +94,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
             self.test_dataset = XRecTokenizerDataset(
@@ -105,9 +105,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
         else:
@@ -254,11 +254,11 @@ class XRecDataset(Dataset):
             f.append([x["feature"]])
             fa.append([x["feature_neg"]])
 
-            if "aspect" in x.keys():  # erra
+            if "aspect" in x:  # erra
                 self.use_aspect = True
                 a.append(x["aspect"])
 
-            if "pred_rating" in x.keys():  # peter
+            if "pred_rating" in x:  # peter
                 self.use_pred_rating = True
                 pr.append(x["pred_rating"])
 
@@ -324,7 +324,7 @@ class XRecDataset(Dataset):
         feature = self.feature[idx]  # (batch_size, 1)
         feature_neg = self.feature_neg[idx]  # (batch_size, 1)
 
-        pred_rating = 0.0
+        pred_rating = 0
         if self.use_aspect:  # erra
             aspect = self.aspect[idx]  # (batch_size, 2x2)
             return user, item, rating, seq, feature, feature_neg, aspect
@@ -341,8 +341,6 @@ class XRecTokenizerDataset(Dataset):
         is_recommender (bool): Whether this is a recommender system
         use_pred_rating (bool): Whether to use predicted ratings
         use_feat_ui_retrieval (bool): Whether to use UI feature retrieval
-        use_feat_ui_retrieval_neg (bool): Whether to use negative UI feature retrieval
-        use_prof_retrieval (bool): Whether to use profile retrieval
         user (torch.Tensor): User indices
         item (torch.Tensor): Item indices
         rating (torch.Tensor): Rating values
@@ -363,9 +361,7 @@ class XRecTokenizerDataset(Dataset):
         eos_token: str,
         pad_token: str,
         tokenizer: PreTrainedTokenizer,
-        max_seq_len: int = 15,
         n_features: int = 0,
-        n_profs: int = 0,
         is_recommender: bool = False,
     ) -> None:
         """Initialize the XRecTokenizerDataset.
@@ -376,17 +372,12 @@ class XRecTokenizerDataset(Dataset):
             eos_token (str): End of sequence token
             pad_token (str): Padding token
             tokenizer (PreTrainedTokenizer): Tokenizer for text processing
-            max_seq_len (int, optional): Maximum sequence length. Defaults to 15.
             n_features (int, optional): Number of features. Defaults to 0.
-            n_profs (int, optional): Number of profiles. Defaults to 0.
             is_recommender (bool, optional): Whether this is a recommender system. Defaults to False.
         """
         self.is_recommender = is_recommender
-
         self.use_pred_rating = False
         self.use_feat_ui_retrieval = False
-        self.use_feat_ui_retrieval_neg = False
-        self.use_prof_retrieval = False
 
         u, i, r, f, a, t, fid, fui, pr = [], [], [], [], [], [], [], [], []
 
@@ -397,6 +388,7 @@ class XRecTokenizerDataset(Dataset):
             f.append([x["feature"]])
             a.append([x["feature_neg"]])
             t.append(f"{bos_token} {x['text']} {eos_token}")
+
             idxs = [
                 (
                     tokenizer.convert_tokens_to_ids(x["pos_text"])
@@ -411,11 +403,11 @@ class XRecTokenizerDataset(Dataset):
             ]
             fid.append(idxs)
 
-            if "retrieved_feats_ui" in x.keys():  # pepler-d
+            if "retrieved_feats_ui" in x:  # pepler-d
                 self.use_feat_ui_retrieval = True
                 fui.append(x["retrieved_feats_ui"])
 
-            if "pred_rating" in x.keys():  # pepler, pemdm
+            if "pred_rating" in x:  # pepler, pemdm
                 self.use_pred_rating = True
                 pr.append(x["pred_rating"])
 
@@ -430,6 +422,7 @@ class XRecTokenizerDataset(Dataset):
         encoded_inputs = tokenizer(t, padding=True, return_tensors="pt")
         self.seq = encoded_inputs["input_ids"].contiguous()
         self.mask = encoded_inputs["attention_mask"].contiguous()
+
         self.fid = torch.tensor(fid, dtype=torch.int64)
 
         if self.use_feat_ui_retrieval:

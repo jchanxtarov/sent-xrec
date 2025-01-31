@@ -1,6 +1,6 @@
 import math
-from collections import Counter, defaultdict
-from typing import Dict, List, Set, Tuple, Union
+from collections import defaultdict
+from typing import Dict, List, Set, Tuple
 
 import torch
 from bert_score import score
@@ -22,13 +22,13 @@ def get_bleu_score(
         Dict[str, float]: Dictionary containing BLEU-1 to BLEU-4 scores
     """
     scores: Dict[str, float] = defaultdict(float)
-    weights = [
+    bleu_weights = [
         (1.0, 0.0, 0.0, 0.0),
         (0.5, 0.5, 0.0, 0.0),
         (0.333, 0.333, 0.333, 0.0),
         (0.25, 0.25, 0.25, 0.25),
     ]
-    types = ["bleu1", "bleu2", "bleu3", "bleu4"]
+    bleu_types = ["bleu1", "bleu2", "bleu3", "bleu4"]
 
     # Calculate BLEU-1 and BLEU-4 score
     # Smoothing function is used to avoid division by zero
@@ -37,7 +37,7 @@ def get_bleu_score(
     ref = [[[word.lower() for word in words]] for words in references]
     hyp = [[word.lower() for word in words] for words in hypothesis]
 
-    for t, ws in zip(types, weights):
+    for t, ws in zip(bleu_types, bleu_weights):
         scores[t] = corpus_bleu(
             list_of_references=ref,
             hypotheses=hyp,
@@ -91,23 +91,22 @@ def get_rouge_score(
         Dict[str, float]: Dictionary containing ROUGE-1, ROUGE-2, and ROUGE-L scores
     """
     rouge_type = ["rouge1", "rouge2", "rougeL"]
-
     scores: Dict[str, float] = defaultdict(float)
+
     # Prepare the data for ROUGE calculation
-    # ROUGE expects a list of strings for the references and hypothesis
     scorer = rouge_scorer.RougeScorer(rouge_type, use_stemmer=True)
+
     # Calculate ROUGE scores
     for ref, hyp in zip(references, hypothesis):
-        score = scorer.score(target=ref.lower(), prediction=hyp.lower())
+        rouge_res = scorer.score(target=ref.lower(), prediction=hyp.lower())
         for score_type in rouge_type:
-            scores[score_type + "-p"] += score[score_type].precision
-            scores[score_type + "-r"] += score[score_type].recall
-            scores[score_type + "-f"] += score[score_type].fmeasure
+            scores[score_type + "-p"] += rouge_res[score_type].precision
+            scores[score_type + "-r"] += rouge_res[score_type].recall
+            scores[score_type + "-f"] += rouge_res[score_type].fmeasure
 
     # Average ROUGE scores
     n = len(references)
     scores = {key: val / n for key, val in scores.items()}
-
     return scores
 
 
@@ -138,7 +137,7 @@ def get_unique_sentence_ratio(
         sequence_batch (List[List[str]]): Batch of token sequences
 
     Returns:
-        Tuple[float, float]: Tuple containing (unique sentence ratio, number of unique sentences)
+        Tuple[float, float]: (unique sentence ratio, number of unique sentences)
     """
     uniq_sequences: List[List[str]] = []
     for seq in sequence_batch:
@@ -160,17 +159,14 @@ def feature_detection(
 
     Args:
         seq_batch (List[List[str]]): Batch of token sequences
-        feature_pos (List[str]): List of positive features to detect
+        feature_pos (List[str]): List of features to detect
 
     Returns:
-        List[Set[str]]: List of sets containing detected features for each sequence
+        List[Set[str]]: List of sets containing detected features per sequence
     """
     feature_batch = []
     for seq in seq_batch:
-        feature_list = []
-        for word in seq:
-            if word in feature_pos:
-                feature_list.append(word)
+        feature_list = [word for word in seq if word in feature_pos]
         feature_batch.append(set(feature_list))
 
     return feature_batch
@@ -198,17 +194,16 @@ def get_feature_matching_ratio(
 
     if denominator == 0:
         return 0
-
     return numerator / denominator
 
 
 def get_feature_coverage_ratio(
-    feature_batch: List[str], feature_pos: List[str]
+    feature_batch: List[Set[str]], feature_pos: List[str]
 ) -> float:
     """Calculate the ratio of features covered by the batch.
 
     Args:
-        feature_batch (List[str]): Batch of features
+        feature_batch (List[Set[str]]): Batch of feature sets
         feature_pos (List[str]): List of all possible features
 
     Returns:
@@ -239,7 +234,6 @@ def get_feature_diversity(feature_batch: List[Set[str]]) -> float:
     denominator = n * (n - 1) / 2
     if denominator == 0:
         return 0
-
     return numerator / denominator
 
 
@@ -268,7 +262,7 @@ def get_mean_absolute_error(
         predicted (List[Tuple[float, float]]): List of (ground truth, prediction) pairs
         max_rating (float): Maximum possible rating
         min_rating (float): Minimum possible rating
-        is_mae (bool, optional): If True, calculate MAE; if False, calculate MSE. Defaults to True
+        is_mae (bool, optional): If True, calculate MAE; if False, calculate MSE
 
     Returns:
         float: Mean absolute error or mean squared error
@@ -302,5 +296,7 @@ def get_root_mean_square_error(
     Returns:
         float: Root mean square error
     """
-    mse = get_mean_absolute_error(predicted, max_rating, min_rating, False)
+    mse = get_mean_absolute_error(
+        predicted, max_rating, min_rating, is_mae=False
+    )
     return math.sqrt(mse)
