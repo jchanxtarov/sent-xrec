@@ -467,6 +467,8 @@ class PETER(BASE):
             text_predict,
         ) = self.generate(user, item, pre_pred_rating, seq, feature)
         outputs = self.get_metrics(
+            user.tolist(),
+            item.tolist(),
             rating.tolist(),
             rating_predict,
             tokens_test,

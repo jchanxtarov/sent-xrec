@@ -144,7 +144,7 @@ class PEPLER_D(BASE):
         Returns:
             torch.Tensor: Training loss
         """
-        feat_ui, mask_feat_ui, _, seq, mask, _, _ = batch
+        _, _, feat_ui, mask_feat_ui, _, seq, mask, _, _ = batch
 
         # (test)
         if batch_idx % 500 == 0:
@@ -173,7 +173,7 @@ class PEPLER_D(BASE):
             batch (Tuple[torch.Tensor, ...]): Batch of validation data
             batch_idx (int): Index of the current batch
         """
-        feat_ui, mask_feat_ui, rating, seq, mask, _, _ = batch
+        _, _, feat_ui, mask_feat_ui, rating, seq, mask, _, _ = batch
 
         if (
             self.current_epoch % self.check_gen_text_every_n_epoch == 0
@@ -204,11 +204,13 @@ class PEPLER_D(BASE):
         Returns:
             Dict[str, Union[float, List[str]]]: Dictionary containing test metrics
         """
-        feat_ui, mask_feat_ui, _, seq, _, fea, pos_neg = batch
+        user, item, feat_ui, mask_feat_ui, _, seq, _, fea, pos_neg = batch
         tokens_test, tokens_predict, text_test, text_predict = self.generate(
             feat_ui, mask_feat_ui, seq
         )
         outputs = self.get_metrics(
+            user.tolist(),
+            item.tolist(),
             None,
             None,
             tokens_test,

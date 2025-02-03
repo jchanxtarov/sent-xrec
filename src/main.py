@@ -50,7 +50,7 @@ def main() -> None:
     if is_recommender:
         if config.model.name in ["peter", "pepler"]:
             # Create a trainer with pre-training configuration
-            trainer = get_trainer(config, stats, save_root, pretrain=True)
+            trainer = get_trainer(config, stats, save_root, for_recommender=True)
             # Pretrain the recommender model before the main training loop
             model, dataloader = pretrain_recommender(
                 config, logger, trainer, recommender, dataloader, stats, model
@@ -62,7 +62,7 @@ def main() -> None:
     trainer = get_trainer(config, stats, save_root)
 
     # If we are not in prediction mode, fit the model
-    if not config.prediction_mode:
+    if not config.test.mode:
         trainer.fit(model, datamodule=dataloader)
 
     # Test the trained model and log results

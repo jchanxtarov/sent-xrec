@@ -195,7 +195,7 @@ def get_model(
         storage: Data storage instance
         save_root: Path to save outputs
         tokenizer: Tokenizer instance
-        logger: Logger instance
+        logger: Logger instance for tracking setup progress
     Returns:
         Tuple containing:
             - recommender: Optional recommender model
@@ -378,23 +378,35 @@ def get_model(
     else:
         raise NotImplementedError()
 
-    # TODO: load_from_checkpoint for other models
-    if config.get("pretrain", {}).get("checkpoint_dir"):
-        recommender = Recommender.load_from_checkpoint(
-            checkpoint_path=config.pretrain.checkpoint_dir,
-            n_users=stats["n_users"],
-            n_items=stats["n_items"],
-            storage=storage,
-            rec_type=config.pretrain.type,
-            n_hidden_layers=config.pretrain.mlp_n_hidden_layers,
-            d_hidden=config.pretrain.mlp_d_hidden,
-            opt_lr=config.opt_pretrain.lr,
-            opt_wd=config.opt_pretrain.wd,
-            opt_factor=config.opt_pretrain.factor,
-            opt_step_size=config.opt_pretrain.step_size,
-            save_root=save_root,
-            custom_logger=logger,
-        )
+    if (
+        config.pretrain.ckpt_path
+        and config.model.type_rating_embedding
+        and recommender
+    ):
+        ckpt = torch.load(config.pretrain.ckpt_path)
+        recommender.load_state_dict(ckpt["state_dict"])
+
+        # recommender = Recommender.load_from_checkpoint(
+        #     checkpoint_path=config.pretrain.ckpt_path,
+        #     n_users=stats["n_users"],
+        #     n_items=stats["n_items"],
+        #     storage=storage,
+        #     rec_type=config.pretrain.type,
+        #     n_hidden_layers=config.pretrain.mlp_n_hidden_layers,
+        #     d_hidden=config.pretrain.mlp_d_hidden,
+        #     opt_lr=config.opt_pretrain.lr,
+        #     opt_wd=config.opt_pretrain.wd,
+        #     opt_factor=config.opt_pretrain.factor,
+        #     opt_step_size=config.opt_pretrain.step_size,
+        #     save_root=save_root,
+        #     custom_logger=logger,
+        # )
+        logger.info("pretrained recommender loaded")
+
+    if config.test.mode and config.test.ckpt_path:
+        ckpt = torch.load(config.test.ckpt_path)
+        model.load_state_dict(ckpt["state_dict"])
+        logger.info("pretrained model loaded")
 
     return recommender, model
 
@@ -417,30 +429,6 @@ def get_trainer(
         Configured PyTorch Lightning Trainer instance with appropriate callbacks
         and settings based on the configuration
     """
-    checkpoint_callback = ModelCheckpoint(
-        monitor=(
-            "valid/loss" if for_recommender is False else "pretrain/valid/loss"
-        ),
-        mode="min",
-        filename="model" if for_recommender is False else "recommender",
-        dirpath=save_root,
-        save_last=False,
-    )
-
-    early_stop_callback = EarlyStopping(
-        monitor=(
-            "valid/loss" if for_recommender is False else "pretrain/valid/loss"
-        ),
-        patience=(
-            config.trainer.patience
-            if not for_recommender
-            else config.trainer_pretrain.patience
-        ),
-        mode="min",
-    )
-    if config.save_model:
-        ensure_file(save_root)
-
     progress_bar = RichProgressBar(
         theme=RichProgressBarTheme(
             description="green_yellow",
@@ -452,9 +440,29 @@ def get_trainer(
             metrics="grey82",
         )
     )
-    callbacks = [progress_bar, early_stop_callback]
+    callbacks = [progress_bar]
+
+    monitor = "valid/loss"
+    early_stop_callback = EarlyStopping(
+        monitor=monitor if not for_recommender else "pretrain/valid/loss",
+        patience=(
+            config.trainer.patience
+            if for_recommender is False
+            else config.trainer_pretrain.patience
+        ),
+        mode="min",
+    )
+    callbacks.append(early_stop_callback)
 
     if config.save_model:
+        ensure_file(save_root)
+        checkpoint_callback = ModelCheckpoint(
+            monitor=monitor if for_recommender is False else "pretrain/valid/loss",
+            mode="min",
+            filename="best-{epoch}" if for_recommender is False else "recommender",
+            dirpath=save_root,
+            save_last=False,
+        )
         callbacks.append(checkpoint_callback)
 
     # Use W&B logger if logging is enabled
@@ -546,7 +554,7 @@ def pretrain_recommender(
             logger.info("skip 1st stage prediction for leaking.")
         else:
             # Only fit if no checkpoint is provided
-            if config.pretrain.checkpoint_dir == "":
+            if config.pretrain.ckpt_path == "":
                 trainer.fit(recommender, datamodule=dataloader)
                 logger.info("finish 1st stage pre-training.")
 
