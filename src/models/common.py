@@ -222,7 +222,7 @@ class BASE(pl.LightningModule):
         """
         scores = {}
 
-        if user is not None and item is not None:
+        if user and item:
             self.outputs_test_step["useridx"] += user
             self.outputs_test_step["itemidx"] += item
 
