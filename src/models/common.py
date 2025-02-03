@@ -28,17 +28,33 @@ from metrics.tools import (
     get_unique_sentence_ratio,
 )
 
-# Configure logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+def get_logger(
+    name: str, custom_logger: Optional[logging.Logger] = None
+) -> logging.Logger:
+    """Get a logger instance.
+
+    Args:
+        name: The name for the logger
+        custom_logger: Optional custom logger instance to use
+
+    Returns:
+        logging.Logger: The logger instance to use
+    """
+    if custom_logger is not None:
+        return custom_logger
+
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
         )
-    )
-    logger.addHandler(handler)
+        logger.addHandler(handler)
+    return logger
 
 
 class BASE(pl.LightningModule):
@@ -69,6 +85,7 @@ class BASE(pl.LightningModule):
         check_gen_text_every_n_epoch: int = 1,
         check_n_samples: int = 1,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ):
         """Initialize the base model.
 
@@ -81,6 +98,7 @@ class BASE(pl.LightningModule):
             check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 1
             check_n_samples (int, optional): Number of samples to check. Defaults to 1
             save_root (str, optional): Directory to save model outputs. Defaults to ""
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None
         """
         super().__init__()
 
@@ -92,6 +110,9 @@ class BASE(pl.LightningModule):
         self.check_gen_text_every_n_epoch = check_gen_text_every_n_epoch
         self.check_n_samples = check_n_samples
         self.save_root = save_root
+        self._custom_logger = get_logger(
+            __name__, custom_logger
+        )  # self.logger is used by pyTorch Lightning.
 
         self.outputs_test_step: Dict[str, List[Any]] = defaultdict(list)
         self.log_table_samples = []
@@ -182,13 +203,30 @@ class BASE(pl.LightningModule):
                 )
             ]
 
-        if self.logger is not None:
-            self.log_table_samples.extend(samples)
-            self.logger.log_table(
+        # Store samples for custom logger
+        self.log_table_samples.extend(samples)
+
+        # Log to custom logger if available
+        if self._custom_logger is not None and hasattr(
+            self._custom_logger, "log_table"
+        ):
+            self._custom_logger.log_table(
                 key="validation_sample",
                 columns=columns,
                 data=self.log_table_samples,
             )
+
+        # Log to WandB through PyTorch Lightning's logger
+        if self.logger is not None and hasattr(self.logger, "experiment"):
+            try:
+                import wandb
+
+                if isinstance(self.logger.experiment, wandb.sdk.wandb_run.Run):
+                    # Create a wandb Table
+                    table = wandb.Table(columns=columns, data=samples)
+                    self.logger.experiment.log({"validation_samples": table})
+            except ImportError:
+                pass  # WandB not installed, skip logging
 
     def get_metrics(
         self,
@@ -948,6 +986,7 @@ class Recommender(BASE):
         opt_factor: float = 0.25,
         opt_step_size: int = 1,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ) -> None:
         """Initialize the recommender model.
 
@@ -965,6 +1004,7 @@ class Recommender(BASE):
             opt_factor (float, optional): Learning rate reduction factor. Defaults to 0.25
             opt_step_size (int, optional): Steps between learning rate updates. Defaults to 1
             save_root (str, optional): Directory to save outputs. Defaults to ""
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None
         """
         super().__init__(
             storage,
@@ -975,6 +1015,7 @@ class Recommender(BASE):
             0,
             0,
             save_root,
+            custom_logger,
         )
 
         assert (

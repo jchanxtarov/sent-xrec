@@ -43,6 +43,7 @@ def main() -> None:
         dataloader.storage,
         save_root,
         tokenizer,
+        logger,
     )
 
     # If a rating-embedding-based recommender model is specified, handle pre-training

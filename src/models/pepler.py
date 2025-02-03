@@ -8,8 +8,6 @@ from transformers import GPT2LMHeadModel, PreTrainedTokenizer
 from loaders.helpers import ReviewDataLoader
 from models.common import BASE, MFRating, MLPRating, ids2tokens_tokenizer
 
-logger = logging.getLogger(__name__)
-
 
 class PEPLER(BASE):
     """Personalized Explanation Generation with Pre-trained Language Model for Recommendation.
@@ -54,6 +52,7 @@ class PEPLER(BASE):
         check_gen_text_every_n_epoch: int = 10,
         check_n_samples: int = 3,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize the PEPLER model.
@@ -82,6 +81,7 @@ class PEPLER(BASE):
             check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 10
             check_n_samples (int, optional): Number of samples to check. Defaults to 3
             save_root (str, optional): Directory to save model outputs. Defaults to ""
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None
         """
         super().__init__(
             storage,
@@ -92,6 +92,7 @@ class PEPLER(BASE):
             check_gen_text_every_n_epoch,
             check_n_samples,
             save_root,
+            custom_logger,
         )
 
         self.lm = GPT2LMHeadModel.from_pretrained(pretrained_model_name)
@@ -291,15 +292,17 @@ class PEPLER(BASE):
             torch.Tensor: Training loss
         """
         user, item, rating, seq, mask, _, _, pre_pred_rating = batch
-        logger.debug("[test] rating: %s", rating)
-        logger.debug("[test] pre_pred_rating: %s", pre_pred_rating)
+        self._custom_logger.debug("[test] rating: %s", rating)
+        self._custom_logger.debug(
+            "[test] pre_pred_rating: %s", pre_pred_rating
+        )
 
         # Diagnostic text generation
         if batch_idx % 500 == 0:
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq
             )
-            logger.info(
+            self._custom_logger.info(
                 "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
                 batch_idx,
                 text[0],
@@ -371,16 +374,16 @@ class PEPLER(BASE):
                         param.requires_grad = True
                     self.phase = 2
                     self.num_epochs_no_improvement = 0
-                    logger.info("[test] required_grad updated!")
+                    self._custom_logger.info("[test] required_grad updated!")
                 elif self.phase == 2:
                     # Stopped by an EarlyStoppingCallback if implemented externally
                     if self.num_epochs_no_improvement > self.patience:
-                        logger.warning(
+                        self._custom_logger.warning(
                             "[WARNING] Training should be stopped as no improvement "
                             "seen during final phase."
                         )
 
-            logger.info(
+            self._custom_logger.info(
                 "[test] current_loss: %s | self.best_loss: %s | self.num_epochs_no_improvement: %s | self.patience: %s",
                 current_loss,
                 self.best_loss,
@@ -408,8 +411,10 @@ class PEPLER(BASE):
         user, item, rating, seq, _, feature, feature_neg, pre_pred_rating = (
             batch
         )
-        logger.debug("[test] rating: %s", rating)
-        logger.debug("[test] pre_pred_rating: %s", pre_pred_rating)
+        self._custom_logger.debug("[test] rating: %s", rating)
+        self._custom_logger.debug(
+            "[test] pre_pred_rating: %s", pre_pred_rating
+        )
 
         (
             rating_predict,

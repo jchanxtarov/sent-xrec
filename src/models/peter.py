@@ -19,8 +19,6 @@ from models.common import (
     ids2tokens,
 )
 
-logger = logging.getLogger(__name__)
-
 
 # NOTE: use_feature: (false, true) -> (PETER, PETER+)
 class PETER(BASE):
@@ -72,6 +70,7 @@ class PETER(BASE):
         check_gen_text_every_n_epoch: int = 10,
         check_n_samples: int = 3,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ):
         """Initialize the PETER model.
 
@@ -103,6 +102,7 @@ class PETER(BASE):
             check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 10
             check_n_samples (int, optional): Number of samples to check. Defaults to 3
             save_root (str, optional): Directory to save model outputs. Defaults to ""
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None
         """
         super().__init__(
             storage,
@@ -113,6 +113,7 @@ class PETER(BASE):
             check_gen_text_every_n_epoch,
             check_n_samples,
             save_root,
+            custom_logger,
         )
 
         self.uir_len = 3 if type_rating_embedding is not None else 2
@@ -361,7 +362,7 @@ class PETER(BASE):
             rating_pred, _, _, text, text_pred = self.generate(
                 user, item, pre_pred_rating, seq, feature
             )
-            logger.info(
+            self._custom_logger.info(
                 "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
                 batch_idx,
                 text[0],

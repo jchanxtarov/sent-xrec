@@ -185,6 +185,7 @@ def get_model(
     storage: ReviewDataLoader,
     save_root: str,
     tokenizer: Optional[PreTrainedTokenizer],
+    logger: Logger,
 ) -> Tuple[Optional[LightningModule], LightningModule]:
     """Create model instances based on configuration.
 
@@ -194,7 +195,7 @@ def get_model(
         storage: Data storage instance
         save_root: Path to save outputs
         tokenizer: Tokenizer instance
-
+        logger: Logger instance
     Returns:
         Tuple containing:
             - recommender: Optional recommender model
@@ -229,6 +230,7 @@ def get_model(
             opt_factor=config.opt_pretrain.factor,
             opt_step_size=config.opt_pretrain.step_size,
             save_root=save_root,
+            custom_logger=logger,
         )
 
     # Main model initialization
@@ -268,6 +270,7 @@ def get_model(
             check_gen_text_every_n_epoch=config.trainer.check_gen_text_every_n_epoch,
             check_n_samples=config.trainer.check_n_samples,
             save_root=save_root,
+            custom_logger=logger,
         )
     elif config.model.name == "cer":
         model = CER(
@@ -295,6 +298,7 @@ def get_model(
             check_gen_text_every_n_epoch=config.trainer.check_gen_text_every_n_epoch,
             check_n_samples=config.trainer.check_n_samples,
             save_root=save_root,
+            custom_logger=logger,
         )
     elif config.model.name == "erra":
         # TODO: load from data
@@ -327,6 +331,7 @@ def get_model(
             check_gen_text_every_n_epoch=config.trainer.check_gen_text_every_n_epoch,
             check_n_samples=config.trainer.check_n_samples,
             save_root=save_root,
+            custom_logger=logger,
         )
     elif config.model.name == "pepler":
         model = PEPLER(
@@ -352,6 +357,7 @@ def get_model(
             check_gen_text_every_n_epoch=config.trainer.check_gen_text_every_n_epoch,
             check_n_samples=config.trainer.check_n_samples,
             save_root=save_root,
+            custom_logger=logger,
         )
     elif config.model.name == "pepler_d":
         model = PEPLER_D(
@@ -367,6 +373,7 @@ def get_model(
             check_gen_text_every_n_epoch=config.trainer.check_gen_text_every_n_epoch,
             check_n_samples=config.trainer.check_n_samples,
             save_root=save_root,
+            custom_logger=logger,
         )
     else:
         raise NotImplementedError()
@@ -386,6 +393,7 @@ def get_model(
             opt_factor=config.opt_pretrain.factor,
             opt_step_size=config.opt_pretrain.step_size,
             save_root=save_root,
+            custom_logger=logger,
         )
 
     return recommender, model
