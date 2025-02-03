@@ -387,23 +387,23 @@ def get_model(
     ):
         ckpt = torch.load(config.pretrain.ckpt_path)
         recommender.load_state_dict(ckpt["state_dict"])
+
+        # recommender = Recommender.load_from_checkpoint(
+        #     checkpoint_path=config.pretrain.ckpt_path,
+        #     n_users=stats["n_users"],
+        #     n_items=stats["n_items"],
+        #     storage=storage,
+        #     rec_type=config.pretrain.type,
+        #     n_hidden_layers=config.pretrain.mlp_n_hidden_layers,
+        #     d_hidden=config.pretrain.mlp_d_hidden,
+        #     opt_lr=config.opt_pretrain.lr,
+        #     opt_wd=config.opt_pretrain.wd,
+        #     opt_factor=config.opt_pretrain.factor,
+        #     opt_step_size=config.opt_pretrain.step_size,
+        #     save_root=save_root,
+        #     custom_logger=logger,
+        # )
         logger.info("pretrained recommender loaded")
-        
-#         recommender = Recommender.load_from_checkpoint(
-#             checkpoint_path=config.pretrain.ckpt_path,
-#             n_users=stats["n_users"],
-#             n_items=stats["n_items"],
-#             storage=storage,
-#             rec_type=config.pretrain.type,
-#             n_hidden_layers=config.pretrain.mlp_n_hidden_layers,
-#             d_hidden=config.pretrain.mlp_d_hidden,
-#             opt_lr=config.opt_pretrain.lr,
-#             opt_wd=config.opt_pretrain.wd,
-#             opt_factor=config.opt_pretrain.factor,
-#             opt_step_size=config.opt_pretrain.step_size,
-#             save_root=save_root,
-#             custom_logger=logger,
-#         )
 
     if config.test.mode and config.test.ckpt_path:
         ckpt = torch.load(config.test.ckpt_path)
