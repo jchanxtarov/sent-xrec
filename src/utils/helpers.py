@@ -374,9 +374,9 @@ def get_model(
         raise NotImplementedError()
 
     if (
-        config.pretrain.ckpt_path != ""
-        and config.model.type_rating_embedding is not None
-        and recommender is not None
+        config.pretrain.ckpt_path
+        and config.model.type_rating_embedding
+        and recommender
     ):
         ckpt = torch.load(config.pretrain.ckpt_path)
         recommender.load_state_dict(ckpt["state_dict"])
