@@ -1,6 +1,5 @@
 model:
   name: peter
-  checkpoint_dir: ""
   d_embed: 512
   n_head: 2
   n_hid: 2048

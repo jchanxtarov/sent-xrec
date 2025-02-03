@@ -192,6 +192,8 @@ class BASE(pl.LightningModule):
 
     def get_metrics(
         self,
+        user: Optional[List[int]],
+        item: Optional[List[int]],
         rating: Optional[List[float]],
         rating_predict: Optional[List[float]],
         tokens_test: List[List[str]],
@@ -204,6 +206,8 @@ class BASE(pl.LightningModule):
         """Calculate various evaluation metrics.
 
         Args:
+            user (Optional[List[float]]): User indecies
+            item (Optional[List[float]]): Item indecies
             rating (Optional[List[float]]): Ground truth ratings
             rating_predict (Optional[List[float]]): Predicted ratings
             tokens_test (List[List[str]]): Ground truth tokens
@@ -217,6 +221,10 @@ class BASE(pl.LightningModule):
             Dict[str, float]: Dictionary of evaluation metrics
         """
         scores = {}
+
+        if user is not None and item is not None:
+            self.outputs_test_step["useridx"] += user
+            self.outputs_test_step["itemidx"] += item
 
         # Rating metrics
         if rating is not None and rating_predict is not None:

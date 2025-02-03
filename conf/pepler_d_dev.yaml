@@ -1,6 +1,5 @@
 model:
   name: pepler_d
-  checkpoint_dir: ""
   pretrained_model_name: gpt2
   n_features: 3
   mode_retrieval: 0

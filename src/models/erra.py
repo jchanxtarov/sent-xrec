@@ -464,6 +464,8 @@ class ERRA(PETER):
             text_predict,
         ) = self.generate(user, item, None, seq, aspect)
         outputs = self.get_metrics(
+            user.tolist(),
+            item.tolist(),
             rating.tolist(),
             rating_predict,
             tokens_test,

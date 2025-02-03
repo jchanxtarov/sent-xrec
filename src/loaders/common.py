@@ -175,7 +175,7 @@ class XRecDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def predict_dataloader(self) -> Dict[str, DataLoader]:
+    def predict_dataloaders(self) -> Dict[str, DataLoader]:
         """Get the prediction data loaders.
 
         Returns:
@@ -493,6 +493,8 @@ class XRecTokenizerDataset(Dataset):
             feat_ui = self.feat_ui[idx]
             mask_feat_ui = self.mask_feat_ui[idx]
             return (
+                user,
+                item,
                 feat_ui,
                 mask_feat_ui,
                 rating,
@@ -502,7 +504,7 @@ class XRecTokenizerDataset(Dataset):
                 feature_neg,
             )
         else:
-            pred_rating = 0.0
+            pred_rating = torch.tensor(0.0, dtype=torch.float32)
             if self.use_pred_rating:
                 pred_rating = self.pred_rating[idx]
             return (
