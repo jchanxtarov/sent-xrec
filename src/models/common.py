@@ -1165,7 +1165,6 @@ class Recommender(BASE):
         pair_rating = [
             (r, p.item()) for (r, p) in zip(rating.tolist(), rating_pred)
         ]
-        print("[test] pair_rating: ", pair_rating)
 
         self.outputs_test_step["useridx"] += user.tolist()
         self.outputs_test_step["itemidx"] += item.tolist()
