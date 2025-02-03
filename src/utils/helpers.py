@@ -423,7 +423,7 @@ def get_trainer(
 
     monitor = "valid/loss"
     early_stop_callback = EarlyStopping(
-        monitor=monitor if for_recommender is False else "pretrain/valid/loss",
+        monitor=monitor if not for_recommender else "pretrain/valid/loss",
         patience=(
             config.trainer.patience
             if for_recommender is False
