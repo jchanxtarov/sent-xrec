@@ -4,11 +4,13 @@ max_seq_len: 20
 seed: 2020
 save_log: false
 save_model: false
-prediction_mode: false
-wandb_project: sent_xrec_bench
+test:
+  mode: false
+  ckpt_path: ""
+wandb_project: sent_xrec
 message: ""
 pretrain:
-  checkpoint_dir: ""
+  ckpt_path: ""
   type: mlp
   mlp_n_hidden_layers: 2
   mlp_d_hidden: 400

@@ -46,22 +46,25 @@ Bibtex:
 ## Usage
 
 ### models
-
-0. install poetry (if you need)
+0. Python Version
+```
+">=3.11,<3.13"
+```
+1. install poetry (if you need)
 ```
 $ pip install poetry
 ```
-1. library install & make virtual env
+2. library install & make virtual env
 ```
 $ git clone git@github.com:jchanxtarov/sent_xrec_bench.git
 $ cd sent_xrec_bench
 $ make setup
 ```
-2. download datasets (download xxx_exps.pkl.gz & put it into datasets/)
+3. download datasets (download xxx_exps.pkl.gz & put it into datasets/)
 ```
 $ make load
 ```
-3. run without logging
+4. run without logging
 ```
 $ make dry-run {dataset_name} {model_name}
 ```
@@ -69,8 +72,8 @@ For example,
 ```
 $ make dry-run ratebeer peter
 ```
-4. 【optional】 create wandb account (if you need) and project 'sent_xrec_bench'
-5. 【optional】 run with logging
+1. 【optional】 create wandb account (if you need) and project 'sent_xrec_bench'
+2. 【optional】 run with logging
 ```
 $ make run {dataset_name} {model_name}
 ```
@@ -84,6 +87,7 @@ $ make run ratebeer peter
 Please see the [notebook](https://github.com/jchanxtarov/sent_xrec_bench/blob/main/src/evals/evaluation.ipynb).
 
 ## Datasets to download
+NB: Currently the download script is not supported yet.
 
 Download datasets (download xxx_exps.pkl.gz & put it into datasets/)
 ```

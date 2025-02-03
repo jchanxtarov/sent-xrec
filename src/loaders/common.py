@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import lightning as pl
 import torch
@@ -10,6 +10,24 @@ from loaders.tools import sentence_format
 
 
 class XRecDataModule(pl.LightningDataModule):
+    """A PyTorch Lightning data module for handling recommendation system data.
+
+    This module manages the loading and preparation of data for training, validation,
+    and testing in a recommendation system context.
+
+    Attributes:
+        batch_size (int): Size of batches for data loading
+        max_seq_len (int): Maximum sequence length for text data
+        storage (ReviewDataLoader): Data storage and processing handler
+        bos_token (str): Beginning of sequence token
+        eos_token (str): End of sequence token
+        pad_token (str): Padding token
+        tokenizer (Optional[PreTrainedTokenizer]): Tokenizer for text processing
+        is_recommender (bool): Whether this is a recommender system
+        train_dataset (Union[XRecDataset, XRecTokenizerDataset]): Training dataset
+        valid_dataset (Union[XRecDataset, XRecTokenizerDataset]): Validation dataset
+        test_dataset (Union[XRecDataset, XRecTokenizerDataset]): Test dataset
+    """
 
     def __init__(
         self,
@@ -22,7 +40,20 @@ class XRecDataModule(pl.LightningDataModule):
         pad_token: str = "<pod>",
         tokenizer: Optional[PreTrainedTokenizer] = None,
         is_recommender: bool = False,
-    ):
+    ) -> None:
+        """Initialize the XRecDataModule.
+
+        Args:
+            reviews (Dict[Any, Any]): Dictionary containing review data
+            batch_size (int): Size of batches for data loading
+            max_seq_len (int): Maximum sequence length for text data
+            max_vocab_size (int): Maximum vocabulary size
+            bos_token (str, optional): Beginning of sequence token. Defaults to "<bos>".
+            eos_token (str, optional): End of sequence token. Defaults to "<eos>".
+            pad_token (str, optional): Padding token. Defaults to "<pod>".
+            tokenizer (Optional[PreTrainedTokenizer], optional): Tokenizer for text processing. Defaults to None.
+            is_recommender (bool, optional): Whether this is a recommender system. Defaults to False.
+        """
         super().__init__()
         self.batch_size = batch_size
         self.max_seq_len = max_seq_len
@@ -39,7 +70,12 @@ class XRecDataModule(pl.LightningDataModule):
         self.tokenizer = tokenizer
         self.is_recommender = is_recommender
 
-    def setup(self, stage: str):
+    def setup(self, stage: str) -> None:
+        """Set up the datasets for training, validation, and testing.
+
+        Args:
+            stage (str): Stage of training ('fit', 'validate', 'test', or 'predict')
+        """
         if self.tokenizer is not None:
             self.train_dataset = XRecTokenizerDataset(
                 data=self.storage.train,
@@ -47,9 +83,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
             self.valid_dataset = XRecTokenizerDataset(
@@ -58,9 +94,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
             self.test_dataset = XRecTokenizerDataset(
@@ -69,9 +105,9 @@ class XRecDataModule(pl.LightningDataModule):
                 eos_token=self.eos_token,
                 pad_token=self.pad_token,
                 tokenizer=self.tokenizer,
-                max_seq_len=self.max_seq_len,
+                # max_seq_len=self.max_seq_len, # Not used
                 n_features=self.storage.n_features,
-                n_profs=self.storage.n_retrieved_profs,
+                # n_profs=self.storage.n_retrieved_profs, # Not used
                 is_recommender=self.is_recommender,
             )
         else:
@@ -100,7 +136,12 @@ class XRecDataModule(pl.LightningDataModule):
                 is_recommender=self.is_recommender,
             )
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
+        """Get the training data loader.
+
+        Returns:
+            DataLoader: DataLoader for training data
+        """
         return DataLoader(
             self.train_dataset,
             shuffle=True,
@@ -108,7 +149,12 @@ class XRecDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
+        """Get the validation data loader.
+
+        Returns:
+            DataLoader: DataLoader for validation data
+        """
         return DataLoader(
             self.valid_dataset,
             shuffle=False,
@@ -116,7 +162,12 @@ class XRecDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
+        """Get the test data loader.
+
+        Returns:
+            DataLoader: DataLoader for test data
+        """
         return DataLoader(
             self.test_dataset,
             shuffle=False,
@@ -124,7 +175,12 @@ class XRecDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def predict_dataloader(self):
+    def predict_dataloaders(self) -> Dict[str, DataLoader]:
+        """Get the prediction data loaders.
+
+        Returns:
+            Dict[str, DataLoader]: Dictionary containing DataLoaders for training and validation data
+        """
         return {
             "train": DataLoader(
                 self.train_dataset,
@@ -142,16 +198,41 @@ class XRecDataModule(pl.LightningDataModule):
 
 
 class XRecDataset(Dataset):
+    """Dataset class for recommendation system data without tokenizer.
+
+    Attributes:
+        is_recommender (bool): Whether this is a recommender system
+        use_aspect (bool): Whether to use aspect information
+        use_pred_rating (bool): Whether to use predicted ratings
+        user (torch.Tensor): User indices
+        item (torch.Tensor): Item indices
+        rating (torch.Tensor): Rating values
+        seq (torch.Tensor): Sequence data
+        feature (torch.Tensor): Feature data
+        feature_neg (torch.Tensor): Negative feature data
+        aspect (Optional[torch.Tensor]): Aspect data
+        pred_rating (Optional[torch.Tensor]): Predicted rating data
+    """
 
     def __init__(
         self,
-        data,
-        bos_idx,
-        eos_idx,
-        pad_idx,
-        max_seq_len=15,
-        is_recommender=False,
-    ):
+        data: List[Dict[Any, Any]],
+        bos_idx: int,
+        eos_idx: int,
+        pad_idx: int,
+        max_seq_len: int = 15,
+        is_recommender: bool = False,
+    ) -> None:
+        """Initialize the XRecDataset.
+
+        Args:
+            data (List[Dict[Any, Any]]): List of data samples
+            bos_idx (int): Beginning of sequence index
+            eos_idx (int): End of sequence index
+            pad_idx (int): Padding index
+            max_seq_len (int, optional): Maximum sequence length. Defaults to 15.
+            is_recommender (bool, optional): Whether this is a recommender system. Defaults to False.
+        """
         self.is_recommender = is_recommender
         self.use_aspect = False
         self.use_pred_rating = False
@@ -173,11 +254,11 @@ class XRecDataset(Dataset):
             f.append([x["feature"]])
             fa.append([x["feature_neg"]])
 
-            if "aspect" in x.keys():  # erra
+            if "aspect" in x:  # erra
                 self.use_aspect = True
                 a.append(x["aspect"])
 
-            if "pred_rating" in x.keys():  # peter
+            if "pred_rating" in x:  # peter
                 self.use_pred_rating = True
                 pr.append(x["pred_rating"])
 
@@ -194,10 +275,44 @@ class XRecDataset(Dataset):
         if self.use_pred_rating:
             self.pred_rating = torch.tensor(pr, dtype=torch.float).contiguous()
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Get the length of the dataset.
+
+        Returns:
+            int: Number of samples in the dataset
+        """
         return self.user.size(0)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Union[
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            Union[torch.Tensor, float],
+        ],
+        Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+    ]:
+        """Get a sample from the dataset.
+
+        Args:
+            idx (int): Index of the sample
+
+        Returns:
+            Union[Tuple[torch.Tensor, ...], Tuple[torch.Tensor, ..., float]]:
+                Tuple containing the sample data in various formats depending on the configuration
+        """
         user = self.user[idx]  # (batch_size,)
         item = self.item[idx]
         rating = self.rating[idx]
@@ -220,25 +335,49 @@ class XRecDataset(Dataset):
 
 
 class XRecTokenizerDataset(Dataset):
+    """Dataset class for recommendation system data with tokenizer.
+
+    Attributes:
+        is_recommender (bool): Whether this is a recommender system
+        use_pred_rating (bool): Whether to use predicted ratings
+        use_feat_ui_retrieval (bool): Whether to use UI feature retrieval
+        user (torch.Tensor): User indices
+        item (torch.Tensor): Item indices
+        rating (torch.Tensor): Rating values
+        feature (torch.Tensor): Feature data
+        feature_neg (torch.Tensor): Negative feature data
+        seq (torch.Tensor): Sequence data
+        mask (torch.Tensor): Attention mask
+        fid (torch.Tensor): Feature IDs
+        feat_ui (Optional[torch.Tensor]): UI feature data
+        mask_feat_ui (Optional[torch.Tensor]): UI feature mask
+        pred_rating (Optional[torch.Tensor]): Predicted rating data
+    """
 
     def __init__(
         self,
-        data,
-        bos_token,
-        eos_token,
-        pad_token,
+        data: List[Dict[Any, Any]],
+        bos_token: str,
+        eos_token: str,
+        pad_token: str,
         tokenizer: PreTrainedTokenizer,
-        max_seq_len=15,
-        n_features=0,
-        n_profs=0,
-        is_recommender=False,
-    ):
-        self.is_recommender = is_recommender
+        n_features: int = 0,
+        is_recommender: bool = False,
+    ) -> None:
+        """Initialize the XRecTokenizerDataset.
 
+        Args:
+            data (List[Dict[Any, Any]]): List of data samples
+            bos_token (str): Beginning of sequence token
+            eos_token (str): End of sequence token
+            pad_token (str): Padding token
+            tokenizer (PreTrainedTokenizer): Tokenizer for text processing
+            n_features (int, optional): Number of features. Defaults to 0.
+            is_recommender (bool, optional): Whether this is a recommender system. Defaults to False.
+        """
+        self.is_recommender = is_recommender
         self.use_pred_rating = False
         self.use_feat_ui_retrieval = False
-        self.use_feat_ui_retrieval_neg = False
-        self.use_prof_retrieval = False
 
         u, i, r, f, a, t, fid, fui, pr = [], [], [], [], [], [], [], [], []
 
@@ -249,6 +388,7 @@ class XRecTokenizerDataset(Dataset):
             f.append([x["feature"]])
             a.append([x["feature_neg"]])
             t.append(f"{bos_token} {x['text']} {eos_token}")
+
             idxs = [
                 (
                     tokenizer.convert_tokens_to_ids(x["pos_text"])
@@ -263,11 +403,11 @@ class XRecTokenizerDataset(Dataset):
             ]
             fid.append(idxs)
 
-            if "retrieved_feats_ui" in x.keys():  # pepler-d
+            if "retrieved_feats_ui" in x:  # pepler-d
                 self.use_feat_ui_retrieval = True
                 fui.append(x["retrieved_feats_ui"])
 
-            if "pred_rating" in x.keys():  # pepler, pemdm
+            if "pred_rating" in x:  # pepler, pemdm
                 self.use_pred_rating = True
                 pr.append(x["pred_rating"])
 
@@ -282,12 +422,15 @@ class XRecTokenizerDataset(Dataset):
         encoded_inputs = tokenizer(t, padding=True, return_tensors="pt")
         self.seq = encoded_inputs["input_ids"].contiguous()
         self.mask = encoded_inputs["attention_mask"].contiguous()
+
         self.fid = torch.tensor(fid, dtype=torch.int64)
 
         if self.use_feat_ui_retrieval:
             encoded_inputs = tokenizer(fui, padding=True, return_tensors="pt")
             # NOTE: Words get split with a tokenizer -> x [:, :n_features] , o [:, :max_seq_len]
-            self.feat_ui = encoded_inputs["input_ids"][:, : n_features * 3].contiguous()
+            self.feat_ui = encoded_inputs["input_ids"][
+                :, : n_features * 3
+            ].contiguous()
             self.mask_feat_ui = encoded_inputs["attention_mask"][
                 :, : n_features * 3
             ].contiguous()
@@ -295,10 +438,45 @@ class XRecTokenizerDataset(Dataset):
         if self.use_pred_rating:
             self.pred_rating = torch.tensor(pr, dtype=torch.float).contiguous()
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Get the length of the dataset.
+
+        Returns:
+            int: Number of samples in the dataset
+        """
         return self.user.size(0)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Union[
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+        ],
+        Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            Union[torch.Tensor, float],
+        ],
+    ]:
+        """Get a sample from the dataset.
+
+        Args:
+            idx (int): Index of the sample
+
+        Returns:
+            Union[Tuple[torch.Tensor, ...], Tuple[torch.Tensor, ..., float]]:
+                Tuple containing the sample data in various formats depending on the configuration
+        """
         user = self.user[idx]  # (batch_size,)
         item = self.item[idx]
         rating = self.rating[idx]
@@ -314,9 +492,19 @@ class XRecTokenizerDataset(Dataset):
         if self.use_feat_ui_retrieval:  # pepler-d
             feat_ui = self.feat_ui[idx]
             mask_feat_ui = self.mask_feat_ui[idx]
-            return feat_ui, mask_feat_ui, rating, seq, mask, feature, feature_neg
+            return (
+                user,
+                item,
+                feat_ui,
+                mask_feat_ui,
+                rating,
+                seq,
+                mask,
+                feature,
+                feature_neg,
+            )
         else:
-            pred_rating = 0
+            pred_rating = torch.tensor(0.0, dtype=torch.float32)
             if self.use_pred_rating:
                 pred_rating = self.pred_rating[idx]
             return (

@@ -1,6 +1,5 @@
 model:
   name: erra
-  checkpoint_dir: ""
   retrieval_encoder_name: paraphrase-MiniLM-L6-v2
   d_embed: 384
   n_head: 2

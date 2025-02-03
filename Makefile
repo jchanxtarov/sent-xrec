@@ -41,7 +41,7 @@ setup:
 
 # download datsets
 load:
-	sh scripts/download_all.sh
+	bash src/scripts/download_all.sh
 
 
 # see argments

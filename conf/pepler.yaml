@@ -1,6 +1,5 @@
 model:
   name: pepler
-  checkpoint_dir: ""
   pretrained_model_name: gpt2
   reg_text: 1.0
   reg_rating: 0.01
