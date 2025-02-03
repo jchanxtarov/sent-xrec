@@ -11,8 +11,6 @@ from loaders.helpers import ReviewDataLoader
 from models.common import MLPRating, get_erra_mask, get_square_subsequent_mask
 from models.peter import PETER
 
-logger = logging.getLogger(__name__)
-
 
 class ERRA(PETER):
     """Explainable Recommendation with Reciprocal Attention (ERRA) model.
@@ -60,6 +58,7 @@ class ERRA(PETER):
         check_gen_text_every_n_epoch: int = 10,
         check_n_samples: int = 3,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize the ERRA model.
@@ -91,6 +90,7 @@ class ERRA(PETER):
             check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 10.
             check_n_samples (int, optional): Number of samples to check. Defaults to 3.
             save_root (str, optional): Directory to save model outputs. Defaults to "".
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None.
         """
         super().__init__(
             d_embed=d_embed,
@@ -117,6 +117,7 @@ class ERRA(PETER):
             check_gen_text_every_n_epoch=check_gen_text_every_n_epoch,
             check_n_samples=check_n_samples,
             save_root=save_root,
+            custom_logger=custom_logger,
         )
 
         # Override the base recommender
@@ -357,7 +358,7 @@ class ERRA(PETER):
             rating_pred, _, _, text_gt, text_pred = self.generate(
                 user, item, None, seq, aspect
             )
-            logger.info(
+            self._custom_logger.info(
                 "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
                 batch_idx,
                 text_gt[0],

@@ -8,8 +8,6 @@ from transformers import GPT2LMHeadModel, PreTrainedTokenizer
 from loaders.helpers import ReviewDataLoader
 from models.common import BASE, ids2tokens_tokenizer
 
-logger = logging.getLogger(__name__)
-
 
 class PEPLER_D(BASE):
     """Personalized Explanation Generation with Pre-trained Language Model for Recommendation (Discriminative Version).
@@ -40,6 +38,7 @@ class PEPLER_D(BASE):
         check_gen_text_every_n_epoch: int = 10,
         check_n_samples: int = 3,
         save_root: str = "",
+        custom_logger: Optional[logging.Logger] = None,
     ):
         """Initialize the PEPLER_D model.
 
@@ -56,6 +55,7 @@ class PEPLER_D(BASE):
             check_gen_text_every_n_epoch (int, optional): Epochs between text generation checks. Defaults to 10
             check_n_samples (int, optional): Number of samples to check. Defaults to 3
             save_root (str, optional): Directory to save model outputs. Defaults to ""
+            custom_logger (Optional[logging.Logger], optional): Custom logger instance to use. If None, uses default logger. Defaults to None
         """
         super().__init__(
             storage,
@@ -66,6 +66,7 @@ class PEPLER_D(BASE):
             check_gen_text_every_n_epoch,
             check_n_samples,
             save_root,
+            custom_logger,
         )
 
         self.lm = GPT2LMHeadModel.from_pretrained(pretrained_model_name)
@@ -148,7 +149,7 @@ class PEPLER_D(BASE):
         # (test)
         if batch_idx % 500 == 0:
             _, _, text, text_pred = self.generate(feat_ui, mask_feat_ui, seq)
-            logger.info(
+            self._custom_logger.info(
                 "[test] (train) batch_idx: %s | text: %s | text_pred: %s",
                 batch_idx,
                 text[0],
