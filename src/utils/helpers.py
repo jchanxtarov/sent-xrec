@@ -50,7 +50,7 @@ from utils.tools import (
     set_random_seed,
 )
 
-NOW = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+NOW = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def initialize() -> Tuple[DictConfig, Logger, str]:

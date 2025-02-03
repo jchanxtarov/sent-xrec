@@ -405,6 +405,8 @@ class BASE(pl.LightningModule):
         """
         # Remove unused columns that never get populated
         non_score_cols = [
+            "useridx",
+            "itemidx",
             "rating",
             "rating_predict",
             "rating_input",
@@ -1163,6 +1165,10 @@ class Recommender(BASE):
         pair_rating = [
             (r, p.item()) for (r, p) in zip(rating.tolist(), rating_pred)
         ]
+        print("[test] pair_rating: ", pair_rating)
+
+        self.outputs_test_step["useridx"] += user.tolist()
+        self.outputs_test_step["itemidx"] += item.tolist()
 
         # Store metrics
         self.outputs_test_step["pretrain/rmse"].append(
@@ -1182,7 +1188,7 @@ class Recommender(BASE):
 
     def on_test_epoch_end(self) -> None:
         """Process and log metrics at the end of the test epoch."""
-        non_score_cols = ["rating", "rating_predict"]
+        non_score_cols = ["useridx", "itemidx", "rating", "rating_predict"]
         scores = {
             k: mean(v)
             for k, v in self.outputs_test_step.items()

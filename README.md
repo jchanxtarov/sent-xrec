@@ -1,7 +1,6 @@
 # Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation
 
 - [Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation](#disentangling-likes-and-dislikes-in-personalized-generative-explainable-recommendation)
-  - [TODO](#todo)
   - [Citation](#citation)
   - [Usage](#usage)
     - [models](#models)
@@ -12,21 +11,6 @@
     - [Original datasets](#original-datasets)
     - [Benchmark model implementations](#benchmark-model-implementations)
 
-
-## TODO
-
-- [ ] refactering (entire code)
-- [ ] refactering (set typing)
-- [ ] refactering (function description)
-- [ ] add evaluation notebook
-- [ ] add README.md
-- [ ] clear mypy checker
-- [->] contact original dataset providers
-  - [x] Amazon
-  - [x] RateBeer
-  - [ ] Yelp (wait for reply (over 4 weeks...))
-- [ ] upload dataset to cloud
-- [ ] dataset download script
 
 ## Citation
 If you use our dataset in your work, please cite our paper:
@@ -88,6 +72,7 @@ Please see the [notebook](https://github.com/jchanxtarov/sent_xrec_bench/blob/ma
 
 ## Datasets to download
 NB: Currently the download script is not supported yet.
+*We are currently inquiring with Yelp regarding the possibility of releasing the dataset.
 
 Download datasets (download xxx_exps.pkl.gz & put it into datasets/)
 ```
