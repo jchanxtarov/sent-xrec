@@ -39,7 +39,6 @@ def main() -> None:
     # Initialize models
     recommender, model = get_model(
         config,
-        logger,
         stats,
         dataloader.storage,
         save_root,

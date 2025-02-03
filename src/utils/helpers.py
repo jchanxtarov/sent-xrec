@@ -181,7 +181,6 @@ def get_loader(
 
 def get_model(
     config: DictConfig,
-    logger: Logger,
     stats: Dict[str, int],
     storage: ReviewDataLoader,
     save_root: str,
@@ -192,12 +191,11 @@ def get_model(
 
     Args:
         config: Configuration dictionary
-        logger: Logger instance for tracking setup progress
         stats: Dataset statistics
         storage: Data storage instance
         save_root: Path to save outputs
         tokenizer: Tokenizer instance
-        logger: Logger instance
+        logger: Logger instance for tracking setup progress
     Returns:
         Tuple containing:
             - recommender: Optional recommender model
