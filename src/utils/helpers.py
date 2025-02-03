@@ -382,7 +382,7 @@ def get_model(
         recommender.load_state_dict(ckpt["state_dict"])
         logger.info("pretrained recommender loaded")
 
-    if config.test.mode and config.test.ckpt_path != "":
+    if config.test.mode and config.test.ckpt_path:
         ckpt = torch.load(config.test.ckpt_path)
         model.load_state_dict(ckpt["state_dict"])
         logger.info("pretrained model loaded")
