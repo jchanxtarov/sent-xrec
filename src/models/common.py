@@ -206,6 +206,14 @@ class BASE(pl.LightningModule):
         # Store samples for custom logger
         self.log_table_samples.extend(samples)
 
+        # Log with lightning logger
+        if self.logger:
+            self.logger.log_table(
+                key="validation_sample",
+                columns=columns,
+                data=self.log_table_samples,
+            )
+
         # Log to custom logger if available
         if self._custom_logger is not None and hasattr(
             self._custom_logger, "log_table"
@@ -215,18 +223,6 @@ class BASE(pl.LightningModule):
                 columns=columns,
                 data=self.log_table_samples,
             )
-
-        # Log to WandB through PyTorch Lightning's logger
-        if self.logger is not None and hasattr(self.logger, "experiment"):
-            try:
-                import wandb
-
-                if isinstance(self.logger.experiment, wandb.sdk.wandb_run.Run):
-                    # Create a wandb Table
-                    table = wandb.Table(columns=columns, data=samples)
-                    self.logger.experiment.log({"validation_samples": table})
-            except ImportError:
-                pass  # WandB not installed, skip logging
 
     def get_metrics(
         self,
