@@ -479,6 +479,8 @@ class PEPLER(BASE):
                 assert (
                     rating_pred is not None
                 ), "rating_pred should be included"
+                if rating_pred.dim() == 0:  # when last batch size is 1
+                    rating_pred = rating_pred.unsqueeze(0)
                 rating_predict.extend(rating_pred.tolist())
             else:
                 outputs, _, _ = self.forward(

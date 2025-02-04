@@ -270,7 +270,7 @@ class BASE(pl.LightningModule):
                 pair_rating, self.storage.max_rating, self.storage.min_rating
             )
             self.outputs_test_step["rating"] += rating
-            self.outputs_test_step["rating_predict"] += rating_predict
+            self.outputs_test_step["rating_predict_subtask"] += rating_predict
 
         # Text metrics
         self.list_tokens_predict.extend(tokens_predict)
@@ -405,6 +405,7 @@ class BASE(pl.LightningModule):
             "itemidx",
             "rating",
             "rating_predict",
+            "rating_predict_subtask",
             "rating_input",
             "text",
             "text_predict",
