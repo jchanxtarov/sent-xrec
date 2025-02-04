@@ -526,7 +526,10 @@ class PETER(BASE):
                 ), "rating_pred should be included"
                 if isinstance(rating_pred, tuple):
                     rating_pred = rating_pred[0]
-                rating_predict.extend(rating_pred.tolist())
+                if isinstance(rating_pred.tolist(), float):
+                    rating_predict.append(rating_pred.tolist())
+                else:
+                    rating_predict.extend(rating_pred.tolist())
 
                 context = self.predict(
                     log_context_dis, topk=self.max_seq_len
