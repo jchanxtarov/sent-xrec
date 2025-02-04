@@ -42,9 +42,8 @@ def set_path(
     # Clear CUDA cache to free memory before path setup
     torch.cuda.empty_cache()
 
-    log_name = f"{model}_{message}"
-
-    directory = f"{uid}" if message == "" else f"{uid}_{model}_{message}"
+    log_name = f"{model}" if not message else f"{model}_{message}"
+    directory = f"{uid}_{model}" if not message else f"{uid}_{model}_{message}"
     save_root = f"./outputs/{dataset}/{directory}"
 
     return log_name, save_root
