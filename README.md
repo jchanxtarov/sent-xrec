@@ -40,8 +40,8 @@ $ pip install poetry
 ```
 2. library install & make virtual env
 ```
-$ git clone git@github.com:jchanxtarov/sent_xrec_bench.git
-$ cd sent_xrec_bench
+$ git clone git@github.com:jchanxtarov/sent-xrec.git
+$ cd sent-xrec
 $ make setup
 ```
 3. download datasets (download xxx_exps.pkl.gz & put it into datasets/)
@@ -56,7 +56,7 @@ For example,
 ```
 $ make dry-run ratebeer peter
 ```
-1. 【optional】 create wandb account (if you need) and project 'sent_xrec_bench'
+1. 【optional】 create wandb account (if you need) and project 'sent-xrec'
 2. 【optional】 run with logging
 ```
 $ make run {dataset_name} {model_name}
@@ -68,7 +68,7 @@ $ make run ratebeer peter
 
 ### evaluations using task-specific metrics
 
-Please see the [notebook](https://github.com/jchanxtarov/sent_xrec_bench/blob/main/src/evals/evaluation.ipynb).
+Please see the [notebook](https://github.com/jchanxtarov/sent-xrec/blob/main/src/evals/evaluation.ipynb).
 
 ## Datasets to download
 NB: Currently the download script is not supported yet.
