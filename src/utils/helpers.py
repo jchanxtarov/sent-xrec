@@ -111,7 +111,7 @@ def get_loader(
     Raises:
         NotImplementedError: If specified dataset type is not supported
     """
-    if config.dataset in ["ratebeer", "amazon_movie", "tripadvisor", "yelp"]:
+    if config.dataset in ["ratebeer", "amazon_movie", "amazon_kindle", "yelp"]:
         reviews = data_loader(
             logger,
             config.dataset,
