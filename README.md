@@ -3,8 +3,8 @@
 - [Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation](#disentangling-likes-and-dislikes-in-personalized-generative-explainable-recommendation)
   - [Citation](#citation)
   - [Usage](#usage)
-    - [models](#models)
-    - [evaluations using task-specific metrics](#evaluations-using-task-specific-metrics)
+    - [Models](#models)
+    - [Evaluations using task-specific metrics](#evaluations-using-task-specific-metrics)
   - [Datasets to download](#datasets-to-download)
   - [Original dataset structure](#original-dataset-structure)
   - [References](#references)
@@ -29,7 +29,7 @@ Bibtex:
 
 ## Usage
 
-### models
+### Models
 0. Python Version
 ```
 ">=3.11,<3.13"
@@ -66,14 +66,11 @@ For example,
 $ make run ratebeer peter
 ```
 
-### evaluations using task-specific metrics
+### Evaluations using task-specific metrics
 
 Please see the [notebook](https://github.com/jchanxtarov/sent-xrec/blob/main/src/evals/evaluation.ipynb).
 
 ## Datasets to download
-NB: Currently the download script is not supported yet.
-*We are currently inquiring with Yelp regarding the possibility of releasing the dataset.
-
 Download datasets (download xxx_exps.pkl.gz & put it into datasets/)
 ```
 $ make load
@@ -113,13 +110,15 @@ The original dataset is maintained in json format, and a row consists of the fol
 ### Original datasets
 
 - Amazon Movie [^1]
-- Yelp [^2]
+- ~~Yelp [^2]~~ *1
 - RateBeer [^3]
+- Amazon Kindle [^1] *1
   
 [^1]: https://cseweb.ucsd.edu/~jmcauley/datasets.html#amazon_reviews
 [^2]: https://www.yelp.com/dataset
 [^3]: https://snap.stanford.edu/data/web-RateBeer.html
 
+*1: Since we have not received a response from the original data provider (Yelp), we will provide alternative data (amazon_kindle) instead.
 
 ### Benchmark model implementations
 

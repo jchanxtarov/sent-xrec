@@ -41,6 +41,7 @@ setup:
 
 # download datsets
 load:
+	chmod +x src/scripts/download_all.sh
 	bash src/scripts/download_all.sh
 
 
