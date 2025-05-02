@@ -3,8 +3,6 @@
 - [Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation](#disentangling-likes-and-dislikes-in-personalized-generative-explainable-recommendation)
   - [Citation](#citation)
   - [Usage](#usage)
-    - [Models](#models)
-    - [Evaluations using task-specific metrics](#evaluations-using-task-specific-metrics)
   - [Datasets to download](#datasets-to-download)
   - [Original dataset structure](#original-dataset-structure)
   - [References](#references)
@@ -15,21 +13,27 @@
 ## Citation
 If you use our dataset in your work, please cite our paper:
 
-> Ryotaro Shimizu, Takashi Wada, Yu Wang, Johannes Kruse, Sean O'Brien, Sai HtaungKham, Linxin Song, Yuya Yoshikawa, Yuki Saito, Fugee Tsung, Masayuki Goto, Julian McAuley. 2024. Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation. https://arxiv.org/abs/2410.13248
+> Ryotaro Shimizu, Takashi Wada, Yu Wang, Johannes Kruse, Sean O'Brien, Sai HtaungKham, Linxin Song, Yuya Yoshikawa, Yuki Saito, Fugee Tsung, Masayuki Goto, Julian McAuley. 2024. Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation. In Proceedings of the ACM on Web Conference, pp. 4793-4809, 2025
 
 Bibtex:
 ```
-@article{shimizu2024xrec,
-  title={Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation},
-  author={Ryotaro Shimizu and Takashi Wada and Yu Wang and Johannes Kruse and Sean O'Brien and Sai HtaungKham and Linxin Song and Yuya Yoshikawa and Yuki Saito and Fugee Tsung and Masayuki Goto and Julian McAuley},
-  journal={arXiv preprint arXiv:2410.13248},
-  year={2024}
+@inproceedings{shimizu2025xrec,
+  author = {Shimizu, Ryotaro and Wada, Takashi and Wang, Yu and Kruse, Johannes and O'Brien, Sean and HtaungKham, Sai and Song, Linxin and Yoshikawa, Yuya and Saito, Yuki and Tsung, Fugee and Goto, Masayuki and McAuley, Julian},
+  title = {Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation},
+  year = {2025},
+  url = {https://doi.org/10.1145/3696410.3714583},
+  doi = {10.1145/3696410.3714583},
+  booktitle = {Proceedings of the ACM on Web Conference 2025},
+  pages = {4793--4809},
+  numpages = {17},
+  location = {Sydney NSW, Australia},
+  series = {WWW '25}
 }
+
 ```
 
 ## Usage
 
-### Models
 0. Python Version
 ```
 ">=3.11,<3.13"
@@ -65,10 +69,6 @@ For example,
 ```
 $ make run ratebeer peter
 ```
-
-### Evaluations using task-specific metrics
-
-Please see the [notebook](https://github.com/jchanxtarov/sent-xrec/blob/main/src/evals/evaluation.ipynb).
 
 ## Datasets to download
 Download datasets (download xxx_exps.pkl.gz & put it into datasets/)
