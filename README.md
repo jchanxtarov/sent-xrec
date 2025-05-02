@@ -1,5 +1,8 @@
 # Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation
 
+Please also read our research paper, [Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation
+](https://dl.acm.org/doi/10.1145/3696410.3714583), accepted by WWW 2025 for more details.
+
 - [Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation](#disentangling-likes-and-dislikes-in-personalized-generative-explainable-recommendation)
   - [Citation](#citation)
   - [Usage](#usage)
@@ -8,7 +11,6 @@
   - [References](#references)
     - [Original datasets](#original-datasets)
     - [Benchmark model implementations](#benchmark-model-implementations)
-
 
 ## Citation
 If you use our dataset in your work, please cite our paper:
