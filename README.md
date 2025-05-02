@@ -13,7 +13,7 @@
 ## Citation
 If you use our dataset in your work, please cite our paper:
 
-> Ryotaro Shimizu, Takashi Wada, Yu Wang, Johannes Kruse, Sean O'Brien, Sai HtaungKham, Linxin Song, Yuya Yoshikawa, Yuki Saito, Fugee Tsung, Masayuki Goto, Julian McAuley. 2024. Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation. In Proceedings of the ACM on Web Conference, pp. 4793-4809, 2025
+> Ryotaro Shimizu, Takashi Wada, Yu Wang, Johannes Kruse, Sean O'Brien, Sai HtaungKham, Linxin Song, Yuya Yoshikawa, Yuki Saito, Fugee Tsung, Masayuki Goto, Julian McAuley. 2025. Disentangling Likes and Dislikes in Personalized Generative Explainable Recommendation. In Proceedings of the ACM on Web Conference, pp. 4793-4809
 
 Bibtex:
 ```
