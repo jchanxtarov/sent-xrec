@@ -73,10 +73,10 @@ $ make run ratebeer peter
 ```
 
 ## Datasets to download
-Download datasets (download xxx_exps.pkl.gz & put it into datasets/)
-```
-$ make load
-```
+Download datasets
+
+1. Download xxx_exps.pkl.gz from [here](https://huggingface.co/datasets/latataro/sent-xrec-dataset).
+2. Put them into `datasets/`
 
 
 ## Original dataset structure
